@@ -22,6 +22,9 @@ pub enum ContractError {
     #[error("Stake your shit to use this shitstrap (you ain't a DAO member)")]
     DontHaveShitStaked {},
 
+    #[error("Tryna shit with too many DAOs, max 10")]
+    ShittyDaoCount {},
+
     #[error("Did Not Send Shit, Liar.")]
     DidntSendShit {},
 

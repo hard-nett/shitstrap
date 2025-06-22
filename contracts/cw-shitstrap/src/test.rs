@@ -106,7 +106,7 @@ fn default_init(possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
         shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
         title: "yoo".into(),
         description: "yoooooo".into(),
-        dao_addr: todo!(),
+        daos: todo!(),
     };
 
     // instantiate contract with cw20
@@ -173,6 +173,7 @@ impl ShitSuite {
                 amount: amount.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
                     shit_strapper: sender.to_string(),
+                    dao: todo!(),
                 })?,
             }),
             &vec![],
@@ -193,6 +194,7 @@ impl ShitSuite {
                     denom: cw_denom::UncheckedDenom::Native(denom.into()),
                     amount: amount.into(),
                 },
+                dao: todo!(),
             },
             &vec![coin(amount, denom)],
         )
@@ -219,7 +221,7 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
         shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
         title,
         description,
-        dao_addr: todo!(),
+        daos: todo!(),
     };
     // create default testing suite
     let mut shit = default_init(
@@ -348,6 +350,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("usilk", first_deposit),
+                dao: todo!(),
             },
             &vec![coin(first_deposit, "uatom")],
         )
@@ -368,6 +371,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", first_deposit),
+                dao: todo!(),
             },
             &vec![],
         )
@@ -386,6 +390,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", first_deposit),
+                dao: todo!(),
             },
             &vec![coin(22, "uatom")],
         )
@@ -427,6 +432,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
         shitstrap.clone(),
         &crate::msg::ExecuteMsg::ShitStrap {
             shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
+            dao: todo!(),
         },
         &vec![coin(2000000u128, "uatom")],
     )?;
@@ -459,6 +465,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
+                dao: todo!(),
             },
             &vec![coin(2_000_000u128, "uatom")],
         )
@@ -636,6 +643,7 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("usilk", first_deposit),
+                dao: todo!(),
             },
             &vec![coin(first_deposit, "usilk")],
         )
@@ -684,6 +692,7 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
                 amount: 200u128.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
                     shit_strapper: SHITTER2.to_string(),
+                    dao: todo!(),
                 })?,
             }),
             &vec![],
@@ -776,6 +785,7 @@ fn test_cw20_receive() -> anyhow::Result<(), Error> {
                     denom: cw_denom::UncheckedDenom::Cw20(DEFAULT_CW20.into()),
                     amount: first_deposit.into(),
                 },
+                dao: todo!(),
             },
             &vec![],
         )
@@ -794,6 +804,7 @@ fn test_cw20_receive() -> anyhow::Result<(), Error> {
                 amount: first_deposit.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
                     shit_strapper: SHITTER2.to_string(),
+                    dao: todo!(),
                 })?,
             }),
             &vec![],

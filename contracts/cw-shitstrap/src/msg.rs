@@ -1,14 +1,24 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
 use cw_denom::UncheckedDenom;
 
 use crate::state::Config;
 
 #[cw_serde]
+pub struct DaoParams {
+    /// Dao addr
+    pub addr: Addr,
+    /// Set to 0 to disable
+    pub floor: Uint128,
+    /// Set to 0 to disable
+    pub ceiling: Uint128,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Dao one must be a member of to make use of shitstraps
-    pub dao_addr: String,
+    pub daos: Vec<DaoParams>,
     /// owner of the shit strap. This address will recieve all shit sent for this shitstrap.
     pub owner: Option<String>,
     /// a list of possible accepted assets, and the shit_rate you would like to set for.
@@ -26,7 +36,10 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Entry point to participate in shit-strap
-    ShitStrap { shit: AssetUnchecked },
+    ShitStrap {
+        shit: AssetUnchecked,
+        dao: Option<Addr>,
+    },
     /// Admin function to set full-of-shit status to on. *(used for emergencies or early cutoff)*
     Flush {},
     /// Cw20 Entry Point
@@ -39,7 +52,10 @@ pub enum ExecuteMsg {
 pub enum ReceiveMsg {
     /// Manually register an address for a shit strap when sending cw20 tokens.
     /// This can be a different address than the sender, if desired.
-    ShitStrap { shit_strapper: String },
+    ShitStrap {
+        shit_strapper: String,
+        dao: Option<Addr>,
+    },
 }
 
 #[cw_serde]

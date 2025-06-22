@@ -96,7 +96,8 @@ pub fn test_instantiate_native_payroll_contract() {
             }],
             cutoff: Uint128::new(1000000),
             shitmos: UncheckedDenom::Native("ubtsg".into()),
-            dao_addr: todo!(),
+
+            daos: todo!(),
         },
         label: "Payroll".to_string(),
     };
@@ -271,7 +272,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
         }],
         cutoff: Uint128::new(1000000),
         shitmos: UncheckedDenom::Native("ubtsg".into()),
-        dao_addr: todo!(),
+        daos: todo!(),
     };
 
     // Attempting to call InstantiatePayrollContract directly with cw20 fails
@@ -386,7 +387,7 @@ fn test_instantiate_wrong_ownership_native() {
                     }],
                     cutoff: Uint128::new(1000000),
                     shitmos: UncheckedDenom::Native("ubtsg".into()),
-                    dao_addr: todo!(),
+                    daos: todo!(),
                 },
                 label: "vesting".to_string(),
             },
@@ -470,7 +471,7 @@ fn test_update_vesting_code_id() {
             }],
             cutoff: Uint128::new(1000000),
             shitmos: UncheckedDenom::Native("ubtsg".into()),
-            dao_addr: todo!(),
+            daos: todo!(),
         },
         label: "Payroll".to_string(),
     };
@@ -560,7 +561,7 @@ pub fn test_inconsistent_cw20_amount() {
         }],
         cutoff: Uint128::new(1000000),
         shitmos: UncheckedDenom::Native("ubtsg".into()),
-        dao_addr: todo!(),
+        daos: todo!(),
     };
     // let err: ContractError = app
     //     .execute_contract(

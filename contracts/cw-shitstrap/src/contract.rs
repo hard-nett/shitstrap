@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{AssetUnchecked, ExecuteMsg, InstantiateMsg, PossibleShit, QueryMsg, ReceiveMsg};
 use crate::state::{
-    Config, CONFIG, CURRENT_SHITSTRAP_VALUE, MAX_DEC_PRECISION, REFUND_SHIT, SHITSTRAP_STATE,
+    Config, CONFIG, CURRENT_SHITSTRAP_VALUE, DAOS, MAX_DEC_PRECISION, REFUND_SHIT, SHITSTRAP_STATE,
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -62,6 +62,7 @@ pub fn instantiate(
     }
 
     let shitmos_addr = msg.shitmos.into_checked(deps.as_ref())?;
+
     // save contract instance config
     CONFIG.save(
         deps.storage,
@@ -73,10 +74,15 @@ pub fn instantiate(
             full_of_shit: false,
             title: msg.title,
             description: msg.description,
-            dao: deps.api.addr_validate(&msg.dao_addr)?,
         },
     )?;
 
+    if msg.daos.len() > 10 {
+        return Err(ContractError::ShittyDaoCount {});
+    }
+    for dao in msg.daos {
+        DAOS.save(deps.storage, dao.addr, &(dao.floor, dao.ceiling))?;
+    }
     // set shit-strapped value to 0
     CURRENT_SHITSTRAP_VALUE.save(deps.storage, &Uint128::zero())?;
 
@@ -91,7 +97,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ShitStrap { shit } => execute_shit_strap(deps, info.clone(), shit, info.sender),
+        ExecuteMsg::ShitStrap { shit, dao } => {
+            execute_shit_strap(deps, info.clone(), shit, info.sender, dao)
+        }
         ExecuteMsg::Flush {} => execute_flush(deps, info.sender),
         ExecuteMsg::Receive(cw20_msg) => receive_cw20_message(deps, info, cw20_msg),
         ExecuteMsg::RefundShitter {} => refund_shitter(deps, info),
@@ -153,6 +161,7 @@ pub fn execute_shit_strap(
     info: MessageInfo,
     shit: AssetUnchecked,
     shit_strapper: Addr,
+    dao: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let mut msgs = vec![];
     let mut attrs = vec![];
@@ -163,20 +172,23 @@ pub fn execute_shit_strap(
         return Err(ContractError::FullOfShit {});
     }
 
+    // query dao specified if provided first, if none provided iterate through all daos and query for voting power
     // check if sender is DAO member
-    if deps
-        .querier
-        .query_wasm_smart::<voting::VotingPowerAtHeightResponse>(
-            config.dao.clone(),
-            &voting::Query::VotingPowerAtHeight {
-                address: shit_strapper.to_string(),
-                height: None,
-            },
-        )?
-        .power
-        .is_zero()
-    {
-        return Err(ContractError::DontHaveShitStaked {});
+    if let Some(d) = dao {
+        if let Some(dd) = DAOS.may_load(deps.storage, d.clone())? {
+            check_voting_power(deps.as_ref(), &info.sender, &d, dd.0, dd.1)?;
+        } else {
+            return Err(ContractError::DidntSendShit {});
+        }
+    } else {
+        for d in DAOS.range(deps.storage, None, None, cosmwasm_std::Order::Descending) {
+            match d {
+                Ok((dao, room)) => {
+                    check_voting_power(deps.as_ref(), &info.sender, &dao, room.0, room.1)?;
+                }
+                Err(_) => return Err(ContractError::DidntSendShit {}),
+            }
+        }
     }
 
     if let Some(matched) = config
@@ -368,6 +380,38 @@ pub fn execute_flush(deps: DepsMut, sender: Addr) -> Result<Response, ContractEr
         .add_messages(msgs))
 }
 
+fn check_voting_power(
+    deps: Deps,
+    sender: &Addr,
+    dao: &Addr,
+    floor: Uint128,
+    ceiling: Uint128,
+) -> Result<(), ContractError> {
+    let vp = deps
+        .querier
+        .query_wasm_smart::<voting::VotingPowerAtHeightResponse>(
+            dao,
+            &voting::Query::VotingPowerAtHeight {
+                address: sender.to_string(),
+                height: None,
+            },
+        )?
+        .power;
+
+    if vp.is_zero() {
+        return Err(ContractError::DontHaveShitStaked {});
+    }
+
+    if floor != Uint128::zero() && floor.gt(&vp) {
+        return Err(ContractError::DontHaveShitStaked {});
+    }
+    if ceiling != Uint128::zero() && ceiling.lt(&vp) {
+        return Err(ContractError::DontHaveShitStaked {});
+    }
+
+    Ok(())
+}
+
 fn refund_shitter(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut msg = vec![];
     if let Some(refund) = REFUND_SHIT.may_load(deps.storage, info.sender)? {
@@ -388,7 +432,7 @@ fn receive_cw20_message(
         // only cw20 can call cw20 entry point.
         // we set the denom for the cw20 as info.sender,
         // which will result in error if any addr other than accepted cw20 makes call.
-        ReceiveMsg::ShitStrap { shit_strapper } => {
+        ReceiveMsg::ShitStrap { shit_strapper, dao } => {
             let sender = deps.api.addr_validate(&shit_strapper)?;
             execute_shit_strap(
                 deps,
@@ -398,6 +442,7 @@ fn receive_cw20_message(
                     amount: msg.amount,
                 },
                 sender,
+                dao,
             )
         }
     }

@@ -11,7 +11,7 @@ pub const MAX_DEC_PRECISION: u32 = 18u32;
 #[cw_serde]
 pub struct Config {
     pub owner: Addr,
-    pub dao: Addr,
+
     pub accepted: Vec<PossibleShit>,
     pub cutoff: Uint128,
     pub shitmos_addr: CheckedDenom,
@@ -22,8 +22,12 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("s");
 pub const CURRENT_SHITSTRAP_VALUE: Item<Uint128> = Item::new("h");
-/// amount of token recieved during shitstrap, map key of the token denom
-pub const SHITSTRAP_STATE: Map<String, (Uint128, bool)> = Map::new("t");
-
-// msg formed to return overflow of a sender
 pub const REFUND_SHIT: Map<Addr, CosmosMsg> = Map::new("i");
+pub const SHITSTRAP_STATE: Map<String, (Uint128, bool)> = Map::new("t");
+/// amount of token recieved during shitstrap, map key of the token denom
+
+/// map of eligible daos an the floor and celing limits to vp for participation.
+/// 0,0 == no min & no max
+/// 0,x == no min, vp ceiling at x
+/// x,0 == floor at x, no ceiling
+pub const DAOS: Map<Addr, (Uint128, Uint128)> = Map::new("ty");
