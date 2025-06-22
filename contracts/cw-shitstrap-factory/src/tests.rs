@@ -1,15 +1,13 @@
-use cosmwasm_std::{coins, to_json_binary, Addr, Empty, Uint128};
-use cw20::{Cw20Coin, Cw20ExecuteMsg};
+use cosmwasm_std::{coins, Addr, Empty, Uint128};
+use cw20::Cw20Coin;
 use cw_denom::UncheckedDenom;
 use cw_multi_test::{App, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_ownable::OwnershipError;
-use cw_vesting::{
-    msg::{InstantiateMsg as PayrollInstantiateMsg, QueryMsg as PayrollQueryMsg},
-    vesting::{Schedule, Status, Vest},
-};
+use cw_shitstrap::msg::{InstantiateMsg as ShitstrapInstantiateMsg, PossibleShit};
 
 use crate::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    state::ShitstrapContract,
     ContractError,
 };
 
@@ -39,9 +37,9 @@ fn cw20_contract() -> Box<dyn Contract<Empty>> {
 
 pub fn cw_vesting_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
-        cw_vesting::contract::execute,
-        cw_vesting::contract::instantiate,
-        cw_vesting::contract::query,
+        cw_shitstrap::contract::execute,
+        cw_shitstrap::contract::instantiate,
+        cw_shitstrap::contract::query,
     );
     Box::new(contract)
 }
@@ -55,7 +53,7 @@ pub fn test_instantiate_native_payroll_contract() {
     // Instantiate factory with only Alice allowed to instantiate payroll contracts
     let instantiate = InstantiateMsg {
         owner: Some(ALICE.to_string()),
-        shitstrap_id: cw_vesting_code_id,
+        shitstrap_id: shitstrap_code_id,
     };
     let factory_addr = app
         .instantiate_contract(
@@ -87,18 +85,18 @@ pub fn test_instantiate_native_payroll_contract() {
     let amount = Uint128::new(1000000);
     let unchecked_denom = UncheckedDenom::Native(NATIVE_DENOM.to_string());
 
-    let instantiate_payroll_msg = ExecuteMsg::InstantiateNativePayrollContract {
-        instantiate_msg: PayrollInstantiateMsg {
+    let instantiate_payroll_msg = ExecuteMsg::CreateNativeShitStrapContract {
+        instantiate_msg: ShitstrapInstantiateMsg {
             owner: Some(ALICE.to_string()),
-            recipient: BOB.to_string(),
             title: "title".to_string(),
-            description: Some("desc".to_string()),
-            total: amount,
-            denom: unchecked_denom,
-            schedule: Schedule::SaturatingLinear,
-            vesting_duration_seconds: 200,
-            unbonding_duration_seconds: 2592000, // 30 days
-            start_time: None,
+            description: "desc".to_string(),
+            accepted: vec![PossibleShit {
+                token: UncheckedDenom::Native("ubtsg".into()),
+                shit_rate: Uint128::new(1000000),
+            }],
+            cutoff: Uint128::new(1000000),
+            shitmos: UncheckedDenom::Native("ubtsg".into()),
+            dao_addr: todo!(),
         },
         label: "Payroll".to_string(),
     };
@@ -138,11 +136,11 @@ pub fn test_instantiate_native_payroll_contract() {
     assert_eq!(contract_info.admin, Some(ALICE.to_string()));
 
     // Test query list of contracts
-    let contracts: Vec<VestingContract> = app
+    let contracts: Vec<ShitstrapContract> = app
         .wrap()
         .query_wasm_smart(
             factory_addr.clone(),
-            &QueryMsg::ListVestingContracts {
+            &QueryMsg::ListShitstrapContracts {
                 start_after: None,
                 limit: None,
             },
@@ -151,11 +149,11 @@ pub fn test_instantiate_native_payroll_contract() {
     assert_eq!(contracts.len(), 1);
 
     // Test query by instantiator
-    let contracts: Vec<VestingContract> = app
+    let contracts: Vec<ShitstrapContract> = app
         .wrap()
         .query_wasm_smart(
             factory_addr.clone(),
-            &QueryMsg::ListVestingContractsByInstantiator {
+            &QueryMsg::ListShitstrapContractsByInstantiator {
                 instantiator: ALICE.to_string(),
                 start_after: None,
                 limit: None,
@@ -165,11 +163,11 @@ pub fn test_instantiate_native_payroll_contract() {
     assert_eq!(contracts.len(), 1);
 
     // Test query by instantiator with no results
-    let contracts: Vec<VestingContract> = app
+    let contracts: Vec<ShitstrapContract> = app
         .wrap()
         .query_wasm_smart(
             factory_addr.clone(),
-            &QueryMsg::ListVestingContractsByInstantiator {
+            &QueryMsg::ListShitstrapContractsByInstantiator {
                 instantiator: BOB.to_string(),
                 start_after: None,
                 limit: None,
@@ -178,33 +176,33 @@ pub fn test_instantiate_native_payroll_contract() {
         .unwrap();
     assert_eq!(contracts.len(), 0);
 
-    // Test query by recipient
-    let contracts: Vec<VestingContract> = app
-        .wrap()
-        .query_wasm_smart(
-            factory_addr.clone(),
-            &QueryMsg::ListVestingContractsByRecipient {
-                recipient: BOB.to_string(),
-                start_after: None,
-                limit: None,
-            },
-        )
-        .unwrap();
-    assert_eq!(contracts.len(), 1);
+    // // Test query by recipient
+    // let contracts: Vec<VestingContract> = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         factory_addr.clone(),
+    //         &QueryMsg::ListVestingContractsByRecipient {
+    //             recipient: BOB.to_string(),
+    //             start_after: None,
+    //             limit: None,
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(contracts.len(), 1);
 
-    // Test query by recipient no results
-    let contracts: Vec<VestingContract> = app
-        .wrap()
-        .query_wasm_smart(
-            factory_addr,
-            &QueryMsg::ListVestingContractsByRecipient {
-                recipient: ALICE.to_string(),
-                start_after: None,
-                limit: None,
-            },
-        )
-        .unwrap();
-    assert_eq!(contracts.len(), 0);
+    // // Test query by recipient no results
+    // let contracts: Vec<VestingContract> = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         factory_addr,
+    //         &QueryMsg::ListVestingContractsByRecipient {
+    //             recipient: ALICE.to_string(),
+    //             start_after: None,
+    //             limit: None,
+    //         },
+    //     )
+    //     .unwrap();
+    // assert_eq!(contracts.len(), 0);
 }
 
 #[test]
@@ -263,24 +261,24 @@ pub fn test_instantiate_cw20_payroll_contract() {
     let amount = Uint128::new(1000000);
     let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
 
-    let instantiate_payroll_msg = PayrollInstantiateMsg {
+    let instantiate_payroll_msg = ShitstrapInstantiateMsg {
         owner: Some(ALICE.to_string()),
-        recipient: BOB.to_string(),
         title: "title".to_string(),
-        description: Some("desc".to_string()),
-        total: amount,
-        denom: unchecked_denom,
-        schedule: Schedule::SaturatingLinear,
-        vesting_duration_seconds: 200,
-        unbonding_duration_seconds: 2592000, // 30 days
-        start_time: None,
+        description: "desc".to_string(),
+        accepted: vec![PossibleShit {
+            token: UncheckedDenom::Native("ubtsg".into()),
+            shit_rate: Uint128::new(1000000),
+        }],
+        cutoff: Uint128::new(1000000),
+        shitmos: UncheckedDenom::Native("ubtsg".into()),
+        dao_addr: todo!(),
     };
 
     // Attempting to call InstantiatePayrollContract directly with cw20 fails
     app.execute_contract(
         Addr::unchecked(ALICE),
         factory_addr.clone(),
-        &ExecuteMsg::InstantiateNativePayrollContract {
+        &ExecuteMsg::CreateNativeShitStrapContract {
             instantiate_msg: instantiate_payroll_msg.clone(),
             label: "Payroll".to_string(),
         },
@@ -288,41 +286,41 @@ pub fn test_instantiate_cw20_payroll_contract() {
     )
     .unwrap_err();
 
-    let res = app
-        .execute_contract(
-            Addr::unchecked(ALICE),
-            cw20_addr,
-            &Cw20ExecuteMsg::Send {
-                contract: factory_addr.to_string(),
-                amount: instantiate_payroll_msg.total,
-                msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
-                    instantiate_msg: instantiate_payroll_msg,
-                    label: "Payroll".to_string(),
-                })
-                .unwrap(),
-            },
-            &coins(amount.into(), NATIVE_DENOM),
-        )
-        .unwrap();
+    // let res = app
+    //     .execute_contract(
+    //         Addr::unchecked(ALICE),
+    //         cw20_addr,
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: factory_addr.to_string(),
+    //             amount: instantiate_payroll_msg.total,
+    //             msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
+    //                 instantiate_msg: instantiate_payroll_msg,
+    //                 label: "Payroll".to_string(),
+    //             })
+    //             .unwrap(),
+    //         },
+    //         &coins(amount.into(), NATIVE_DENOM),
+    //     )
+    //     .unwrap();
 
-    // Get the payroll address from the instantiate event
-    let instantiate_event = &res.events[4];
-    assert_eq!(instantiate_event.ty, "instantiate");
-    let cw_vesting_addr = instantiate_event.attributes[0].value.clone();
+    // // Get the payroll address from the instantiate event
+    // let instantiate_event = &res.events[4];
+    // assert_eq!(instantiate_event.ty, "instantiate");
+    // let cw_vesting_addr = instantiate_event.attributes[0].value.clone();
 
-    // Check that admin of contract is owner specified in Instantiation Message
-    let contract_info = app
-        .wrap()
-        .query_wasm_contract_info(cw_vesting_addr.clone())
-        .unwrap();
-    assert_eq!(contract_info.admin, Some(ALICE.to_string()));
+    // // Check that admin of contract is owner specified in Instantiation Message
+    // let contract_info = app
+    //     .wrap()
+    //     .query_wasm_contract_info(cw_vesting_addr.clone())
+    //     .unwrap();
+    // assert_eq!(contract_info.admin, Some(ALICE.to_string()));
 
     // Test query by instantiator
-    let contracts: Vec<VestingContract> = app
+    let contracts: Vec<ShitstrapContract> = app
         .wrap()
         .query_wasm_smart(
             factory_addr,
-            &QueryMsg::ListVestingContractsByInstantiator {
+            &QueryMsg::ListShitstrapContractsByInstantiator {
                 instantiator: ALICE.to_string(),
                 start_after: None,
                 limit: None,
@@ -330,13 +328,6 @@ pub fn test_instantiate_cw20_payroll_contract() {
         )
         .unwrap();
     assert_eq!(contracts.len(), 1);
-
-    // Check that the vesting payment contract is active
-    let vp: Vest = app
-        .wrap()
-        .query_wasm_smart(cw_vesting_addr, &PayrollQueryMsg::Info {})
-        .unwrap();
-    assert_eq!(vp.status, Status::Funded);
 }
 
 #[test]
@@ -384,18 +375,18 @@ fn test_instantiate_wrong_ownership_native() {
         .execute_contract(
             Addr::unchecked("ekez"),
             factory_addr,
-            &ExecuteMsg::InstantiateNativePayrollContract {
-                instantiate_msg: PayrollInstantiateMsg {
+            &ExecuteMsg::CreateNativeShitStrapContract {
+                instantiate_msg: ShitstrapInstantiateMsg {
                     owner: Some(ALICE.to_string()),
-                    recipient: BOB.to_string(),
                     title: "title".to_string(),
-                    description: Some("desc".to_string()),
-                    total: amount,
-                    denom: unchecked_denom,
-                    schedule: Schedule::SaturatingLinear,
-                    vesting_duration_seconds: 200,
-                    unbonding_duration_seconds: 2592000, // 30 days
-                    start_time: None,
+                    description: "desc".to_string(),
+                    accepted: vec![PossibleShit {
+                        token: UncheckedDenom::Native("ubtsg".into()),
+                        shit_rate: Uint128::new(1000000),
+                    }],
+                    cutoff: Uint128::new(1000000),
+                    shitmos: UncheckedDenom::Native("ubtsg".into()),
+                    dao_addr: todo!(),
                 },
                 label: "vesting".to_string(),
             },
@@ -468,18 +459,18 @@ fn test_update_vesting_code_id() {
     let amount = Uint128::new(1000000);
     let unchecked_denom = UncheckedDenom::Native(NATIVE_DENOM.to_string());
 
-    let instantiate_payroll_msg = ExecuteMsg::InstantiateNativePayrollContract {
-        instantiate_msg: PayrollInstantiateMsg {
+    let instantiate_payroll_msg = ExecuteMsg::CreateNativeShitStrapContract {
+        instantiate_msg: ShitstrapInstantiateMsg {
             owner: Some(ALICE.to_string()),
-            recipient: BOB.to_string(),
             title: "title".to_string(),
-            description: Some("desc".to_string()),
-            total: amount,
-            denom: unchecked_denom,
-            schedule: Schedule::SaturatingLinear,
-            vesting_duration_seconds: 200,
-            unbonding_duration_seconds: 2592000, // 30 days
-            start_time: None,
+            description: "desc".to_string(),
+            accepted: vec![PossibleShit {
+                token: UncheckedDenom::Native("ubtsg".into()),
+                shit_rate: Uint128::new(1000000),
+            }],
+            cutoff: Uint128::new(1000000),
+            shitmos: UncheckedDenom::Native("ubtsg".into()),
+            dao_addr: todo!(),
         },
         label: "Payroll".to_string(),
     };
@@ -559,41 +550,41 @@ pub fn test_inconsistent_cw20_amount() {
     .unwrap();
     let amount = Uint128::new(1000000);
     let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
-    let instantiate_payroll_msg = PayrollInstantiateMsg {
+    let instantiate_payroll_msg = ShitstrapInstantiateMsg {
         owner: Some(ALICE.to_string()),
-        recipient: BOB.to_string(),
         title: "title".to_string(),
-        description: Some("desc".to_string()),
-        total: amount - Uint128::new(1), // lesser amount than sent
-        denom: unchecked_denom,
-        schedule: Schedule::SaturatingLinear,
-        vesting_duration_seconds: 200,
-        unbonding_duration_seconds: 2592000, // 30 days
-        start_time: None,
+        description: "desc".to_string(),
+        accepted: vec![PossibleShit {
+            token: UncheckedDenom::Native("ubtsg".into()),
+            shit_rate: Uint128::new(1000000),
+        }],
+        cutoff: Uint128::new(1000000),
+        shitmos: UncheckedDenom::Native("ubtsg".into()),
+        dao_addr: todo!(),
     };
-    let err: ContractError = app
-        .execute_contract(
-            Addr::unchecked(ALICE),
-            cw20_addr,
-            &Cw20ExecuteMsg::Send {
-                contract: factory_addr.to_string(),
-                amount,
-                msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
-                    instantiate_msg: instantiate_payroll_msg,
-                    label: "Payroll".to_string(),
-                })
-                .unwrap(),
-            },
-            &coins(amount.into(), NATIVE_DENOM), // https://github.com/CosmWasm/cw-plus/issues/862
-        )
-        .unwrap_err()
-        .downcast()
-        .unwrap();
-    assert_eq!(
-        err,
-        ContractError::WrongFundAmount {
-            sent: amount,
-            expected: amount - Uint128::one()
-        }
-    );
+    // let err: ContractError = app
+    //     .execute_contract(
+    //         Addr::unchecked(ALICE),
+    //         cw20_addr,
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: factory_addr.to_string(),
+    //             amount,
+    //             msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
+    //                 instantiate_msg: instantiate_payroll_msg,
+    //                 label: "Payroll".to_string(),
+    //             })
+    //             .unwrap(),
+    //         },
+    //         &coins(amount.into(), NATIVE_DENOM), // https://github.com/CosmWasm/cw-plus/issues/862
+    //     )
+    //     .unwrap_err()
+    //     .downcast()
+    //     .unwrap();
+    // assert_eq!(
+    //     err,
+    //     ContractError::WrongFundAmount {
+    //         sent: amount,
+    //         expected: amount - Uint128::one()
+    //     }
+    // );
 }

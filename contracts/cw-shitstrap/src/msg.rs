@@ -7,6 +7,8 @@ use crate::state::Config;
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Dao one must be a member of to make use of shitstraps
+    pub dao_addr: String,
     /// owner of the shit strap. This address will recieve all shit sent for this shitstrap.
     pub owner: Option<String>,
     /// a list of possible accepted assets, and the shit_rate you would like to set for.

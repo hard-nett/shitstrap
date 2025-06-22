@@ -11,6 +11,7 @@ pub const MAX_DEC_PRECISION: u32 = 18u32;
 #[cw_serde]
 pub struct Config {
     pub owner: Addr,
+    pub dao: Addr,
     pub accepted: Vec<PossibleShit>,
     pub cutoff: Uint128,
     pub shitmos_addr: CheckedDenom,

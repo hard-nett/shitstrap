@@ -1,3 +1,8 @@
+use crate::error::ContractError;
+use crate::msg::{AssetUnchecked, ExecuteMsg, InstantiateMsg, PossibleShit, QueryMsg, ReceiveMsg};
+use crate::state::{
+    Config, CONFIG, CURRENT_SHITSTRAP_VALUE, MAX_DEC_PRECISION, REFUND_SHIT, SHITSTRAP_STATE,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -7,12 +12,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_denom::{CheckedDenom, UncheckedDenom};
-
-use crate::error::ContractError;
-use crate::msg::{AssetUnchecked, ExecuteMsg, InstantiateMsg, PossibleShit, QueryMsg, ReceiveMsg};
-use crate::state::{
-    Config, CONFIG, CURRENT_SHITSTRAP_VALUE, MAX_DEC_PRECISION, REFUND_SHIT, SHITSTRAP_STATE,
-};
+use dao_interface::voting;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw-shit-strap";
@@ -46,12 +46,14 @@ pub fn instantiate(
         return Err(ContractError::UnnaceptableShitAmount {});
     }
 
-    // cannot have identical accepted tokens, or shit_rates that
+    // cannot have identical accepted tokens, or shit_rates
     let mut unique_fee = Vec::new();
     for accepted in msg.accepted.iter() {
         if unique_fee.contains(&accepted) {
             return Err(ContractError::SameShit {});
         } else {
+            // check cw20 tokens when added
+            accepted.token.clone().into_checked(deps.as_ref())?;
             unique_fee.push(accepted);
         }
         if accepted.shit_rate == Uint128::zero() {
@@ -71,6 +73,7 @@ pub fn instantiate(
             full_of_shit: false,
             title: msg.title,
             description: msg.description,
+            dao: deps.api.addr_validate(&msg.dao_addr)?,
         },
     )?;
 
@@ -159,6 +162,23 @@ pub fn execute_shit_strap(
     if config.full_of_shit {
         return Err(ContractError::FullOfShit {});
     }
+
+    // check if sender is DAO member
+    if deps
+        .querier
+        .query_wasm_smart::<voting::VotingPowerAtHeightResponse>(
+            config.dao.clone(),
+            &voting::Query::VotingPowerAtHeight {
+                address: shit_strapper.to_string(),
+                height: None,
+            },
+        )?
+        .power
+        .is_zero()
+    {
+        return Err(ContractError::DontHaveShitStaked {});
+    }
+
     if let Some(matched) = config
         .accepted
         .clone()
@@ -383,7 +403,7 @@ fn receive_cw20_message(
     }
 }
 
-/// defines conversion rate for accepted_shit to shit being strapped
+// defines conversion rate for accepted_shit to shit being strapped
 fn calculate_shit_value(
     deps: Deps,
     matched: &PossibleShit,

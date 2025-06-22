@@ -106,6 +106,7 @@ fn default_init(possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
         shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
         title: "yoo".into(),
         description: "yoooooo".into(),
+        dao_addr: todo!(),
     };
 
     // instantiate contract with cw20
@@ -218,6 +219,7 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
         shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
         title,
         description,
+        dao_addr: todo!(),
     };
     // create default testing suite
     let mut shit = default_init(
