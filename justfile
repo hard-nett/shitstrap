@@ -1,3 +1,5 @@
+#!/bin/bash
+
 workspace-optimize:
     #!/bin/bash
     if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
@@ -10,3 +12,6 @@ workspace-optimize:
             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
             --platform linux/amd64 \
             cosmwasm/optimizer:0.16.0; fi
+
+schema-codegen:
+        @sh scripts/sh/schema-codegen.sh
