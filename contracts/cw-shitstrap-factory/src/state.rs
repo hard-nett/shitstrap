@@ -25,7 +25,7 @@ impl IndexList<ShitstrapContract> for TokenIndexes<'_> {
     }
 }
 
-pub fn shitstrap_contracts<'a>() -> IndexedMap<'a, &'a str, ShitstrapContract, TokenIndexes<'a>> {
+pub fn shitstrap_contracts<'a>() -> IndexedMap<&'a str, ShitstrapContract, TokenIndexes<'a>> {
     let indexes = TokenIndexes {
         instantiator: MultiIndex::new(
             |_pk: &[u8], d: &ShitstrapContract| d.instantiator.clone(),

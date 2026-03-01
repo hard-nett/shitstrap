@@ -1,18 +1,18 @@
 use crate::error::ContractError;
 use crate::msg::{AssetUnchecked, ExecuteMsg, InstantiateMsg, PossibleShit, QueryMsg, ReceiveMsg};
 use crate::state::{
-    Config, CONFIG, CURRENT_SHITSTRAP_VALUE, DAOS, MAX_DEC_PRECISION, REFUND_SHIT, SHITSTRAP_STATE,
+    Config, ATOMINC_DECIMALS, CONFIG, CURRENT_SHITSTRAP_VALUE, DAOS, MAX_DEC_PRECISION,
+    REFUND_SHIT, SHITSTRAP_STATE, SHIT_RATE_SCALE,
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, from_json, to_json_binary, Addr, Attribute, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, Fraction, MessageInfo, Response, StdError, StdResult, Uint128,
+    Env, MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_denom::{CheckedDenom, UncheckedDenom};
-use dao_interface::voting;
+use cw_shit_denom::{CheckedDenom, UncheckedDenom};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw-shit-strap";
@@ -175,12 +175,16 @@ pub fn execute_shit_strap(
     // query dao specified if provided first, if none provided iterate through all daos and query for voting power
     // check if sender is DAO member
     if let Some(d) = dao {
+        #[cfg(feature = "dao")]
         if let Some(dd) = DAOS.may_load(deps.storage, d.clone())? {
             check_voting_power(deps.as_ref(), &info.sender, &d, dd.0, dd.1)?;
         } else {
             return Err(ContractError::DidntSendShit {});
         }
+        #[cfg(not(feature = "dao"))]
+        return Err(ContractError::DaoNotEnabled {});
     } else {
+        #[cfg(feature = "dao")]
         for d in DAOS.range(deps.storage, None, None, cosmwasm_std::Order::Descending) {
             match d {
                 Ok((dao, room)) => {
@@ -210,7 +214,7 @@ pub fn execute_shit_strap(
             }
             UncheckedDenom::Cw20(c) => {
                 // info.sender should always be one of the accepted tokens
-                if info.sender != c {
+                if info.sender.to_string() != c {
                     return Err(ContractError::ShittyCw20 {});
                 }
             }
@@ -380,6 +384,7 @@ pub fn execute_flush(deps: DepsMut, sender: Addr) -> Result<Response, ContractEr
         .add_messages(msgs))
 }
 
+#[cfg(feature = "dao")]
 fn check_voting_power(
     deps: Deps,
     sender: &Addr,
@@ -387,6 +392,8 @@ fn check_voting_power(
     floor: Uint128,
     ceiling: Uint128,
 ) -> Result<(), ContractError> {
+    use dao_interface::voting;
+
     let vp = deps
         .querier
         .query_wasm_smart::<voting::VotingPowerAtHeightResponse>(
@@ -447,17 +454,18 @@ fn receive_cw20_message(
         }
     }
 }
-
+use cosmwasm_std::Fraction;
 // defines conversion rate for accepted_shit to shit being strapped
 fn calculate_shit_value(
     deps: Deps,
     matched: &PossibleShit,
-    eligile_shit_amount: Uint128,
+    eligible_shit_amount: Uint128,
 ) -> Result<(Uint128, CheckedDenom), ContractError> {
-    let shit_value =
-        eligile_shit_amount * Decimal::from_atomics(matched.shit_rate, MAX_DEC_PRECISION)?;
-    let received_denom = matched.clone().token.into_checked(deps)?;
-    Ok((shit_value, received_denom))
+    let rate = Decimal::from_atomics(matched.shit_rate, MAX_DEC_PRECISION)?;
+    Ok((
+        eligible_shit_amount.multiply_ratio(rate.numerator(), rate.denominator()),
+        matched.clone().token.into_checked(deps)?,
+    ))
 }
 
 /// reverses the shit rate calculation to get the exact # of tokens to return
@@ -466,13 +474,29 @@ fn calculate_shit_return(
     cutoff: Uint128,
     shit_rate: Uint128,
 ) -> Result<(Uint128, Uint128), ContractError> {
+    // Calculate tokens to return: overflow * 1e6 / shit_rate
     let overflow = new_val - cutoff;
-    let return_to_shitter_amnt = overflow
-        * Decimal::from_atomics(shit_rate, MAX_DEC_PRECISION)?
-            .inv()
-            .expect("ahh");
+    let return_to_shitter_amnt =
+        overflow.multiply_ratio(10u128.pow(MAX_DEC_PRECISION as u32), shit_rate);
+
     Ok((overflow, return_to_shitter_amnt))
 }
+
+// /// reverses the shit rate calculation to get the exact # of tokens to return
+// fn calculate_shit_return(
+//     new_val: Uint128,
+//     cutoff: Uint128,
+//     shit_rate: Uint128,
+// ) -> Result<(Uint128, Uint128), ContractError> {
+//     // Calculate tokens to return: overflow * 1e6 / shit_rate
+//     let overflow = new_val - cutoff;
+//     Ok((
+//         overflow,
+//         overflow
+//             .checked_mul(Uint128::from(SHIT_RATE_SCALE))?
+//             .checked_div(shit_rate)?,
+//     ))
+// }
 
 fn shitstrap_dao(
     cw20: bool,

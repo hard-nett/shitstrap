@@ -1,5 +1,5 @@
-use cosmwasm_std::{DecimalRangeExceeded, StdError};
-use cw_denom::DenomError;
+use cosmwasm_std::{DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError};
+use cw_shit_denom::DenomError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -12,6 +12,12 @@ pub enum ContractError {
 
     #[error("{0}")]
     DecimalRangeExceeded(#[from] DecimalRangeExceeded),
+
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    DivideByZeroError(#[from] DivideByZeroError),
 
     #[error("Wrong Shit.")]
     WrongShit {},
@@ -30,6 +36,9 @@ pub enum ContractError {
 
     #[error("Unable to claim refund")]
     DigginForShitTreasure {},
+
+    #[error("Dao Feature Not Enabled")]
+    DaoNotEnabled {},
 
     #[error("Unauthorized")]
     ShittyAuthorization {},

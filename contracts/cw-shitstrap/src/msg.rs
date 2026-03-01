@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
-use cw_denom::UncheckedDenom;
+use cw_shit_denom::UncheckedDenom;
 
 use crate::state::Config;
 

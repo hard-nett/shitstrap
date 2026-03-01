@@ -1,12 +1,14 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, CosmosMsg, Uint128};
-use cw_denom::CheckedDenom;
+use cw_shit_denom::CheckedDenom;
 use cw_storage_plus::{Item, Map};
 
 use crate::msg::PossibleShit;
 
 pub const ATOMINC_DECIMALS: u32 = 6u32;
 pub const MAX_DEC_PRECISION: u32 = 18u32;
+pub const SHIT_RATE_SCALE: u128 = 1_000_000;
+
 
 #[cw_serde]
 pub struct Config {
