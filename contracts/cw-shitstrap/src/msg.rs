@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
-use cw_denom::UncheckedDenom;
+use cw_shit_denom::UncheckedDenom;
 
 use crate::state::Config;
 
@@ -34,6 +34,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
 pub enum ExecuteMsg {
     /// Entry point to participate in shit-strap
     ShitStrap {
@@ -60,6 +61,7 @@ pub enum ReceiveMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
 pub enum QueryMsg {
     /// Returns max possible deposit value for a shit-strap instance
     #[returns(Config)]

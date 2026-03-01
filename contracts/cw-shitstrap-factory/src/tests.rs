@@ -1,8 +1,8 @@
 use cosmwasm_std::{coins, Addr, Empty, Uint128};
 use cw20::Cw20Coin;
-use cw_denom::UncheckedDenom;
 use cw_multi_test::{App, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_ownable::OwnershipError;
+use cw_shit_denom::UncheckedDenom;
 use cw_shitstrap::msg::{InstantiateMsg as ShitstrapInstantiateMsg, PossibleShit};
 
 use crate::{
@@ -134,7 +134,10 @@ pub fn test_instantiate_native_payroll_contract() {
         .wrap()
         .query_wasm_contract_info(cw_vesting_addr)
         .unwrap();
-    assert_eq!(contract_info.admin, Some(ALICE.to_string()));
+    assert_eq!(
+        contract_info.admin,
+        Some(Addr::unchecked(ALICE.to_string()))
+    );
 
     // Test query list of contracts
     let contracts: Vec<ShitstrapContract> = app
@@ -561,7 +564,7 @@ pub fn test_inconsistent_cw20_amount() {
         }],
         cutoff: Uint128::new(1000000),
         shitmos: UncheckedDenom::Native("ubtsg".into()),
-        daos: todo!(),
+        daos: Vec::new(),
     };
     // let err: ContractError = app
     //     .execute_contract(

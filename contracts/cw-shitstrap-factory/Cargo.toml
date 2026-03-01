@@ -9,16 +9,17 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
+default = []
 # use library feature to disable all instantiate/execute/query exports
 library = []
+interface = ["cw-orch"]
 
 [dependencies]
+cw-orch = { workspace = true, optional = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cw-shitstrap = { path = "../cw-shitstrap", features = ["library"] }
-cw-denom = { workspace = true }
+cw-shit-denom  = { workspace = true }
 cw-ownable = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }

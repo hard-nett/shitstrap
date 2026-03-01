@@ -1,6 +1,6 @@
 {
   "contract_name": "cw-shitstrap-factory",
-  "contract_version": "2.5.0",
+  "contract_version": "0.1.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -144,6 +144,45 @@
           }
         ]
       },
+      "Addr": {
+        "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+        "type": "string"
+      },
+      "DaoParams": {
+        "type": "object",
+        "required": [
+          "addr",
+          "ceiling",
+          "floor"
+        ],
+        "properties": {
+          "addr": {
+            "description": "Dao addr",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Addr"
+              }
+            ]
+          },
+          "ceiling": {
+            "description": "Set to 0 to disable",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
+          },
+          "floor": {
+            "description": "Set to 0 to disable",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "Expiration": {
         "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
         "oneOf": [
@@ -196,12 +235,14 @@
         "required": [
           "accepted",
           "cutoff",
-          "owner",
-          "shitmos"
+          "daos",
+          "description",
+          "shitmos",
+          "title"
         ],
         "properties": {
           "accepted": {
-            "description": "a list of possible accepted assets",
+            "description": "a list of possible accepted assets, and the shit_rate you would like to set for.",
             "type": "array",
             "items": {
               "$ref": "#/definitions/PossibleShit"
@@ -215,9 +256,23 @@
               }
             ]
           },
-          "owner": {
-            "description": "owner of the shit strap",
+          "daos": {
+            "description": "Dao one must be a member of to make use of shitstraps",
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/DaoParams"
+            }
+          },
+          "description": {
+            "description": "description of shitstrap for recordkeeping",
             "type": "string"
+          },
+          "owner": {
+            "description": "owner of the shit strap. This address will recieve all shit sent for this shitstrap.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "shitmos": {
             "description": "SHITMOS token address",
@@ -226,6 +281,10 @@
                 "$ref": "#/definitions/UncheckedDenom"
               }
             ]
+          },
+          "title": {
+            "description": "label for contract & front end",
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -238,7 +297,7 @@
         ],
         "properties": {
           "shit_rate": {
-            "description": "Atomic unit value for conversion ratio with shitmos.\\ *(1000000 == 1:1 coversion ratio || 500000 ==  0.5 == half as much shitmos sent as asset recieved)*",
+            "description": "Atomic unit value for conversion ratio with shitmos.\\ * 1000000000000000000 == 1:1 coversion ratio\\ *  500000000000000000 ==  0.5",
             "allOf": [
               {
                 "$ref": "#/definitions/Uint128"

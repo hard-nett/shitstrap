@@ -1,9 +1,9 @@
-use cosmwasm_std::{coin, to_json_binary, Addr, Decimal, Empty, Event, Uint128};
+use cosmwasm_std::{coin, to_json_binary, Addr, Decimal, Empty, Event, Fraction, Uint128};
 use cw20::{Cw20Coin, Cw20ReceiveMsg};
 use cw20_base::msg::InstantiateMsg as Cw20Init;
-use cw_denom::UncheckedDenom;
 use cw_multi_test::{App, AppResponse, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_orch::anyhow::{self, Error};
+use cw_shit_denom::UncheckedDenom;
 
 use crate::{
     msg::{AssetUnchecked, InstantiateMsg, PossibleShit, ReceiveMsg},
@@ -12,12 +12,14 @@ use crate::{
 };
 
 pub const DEFAULT_BALANCE: u128 = 1_000_000_000;
-pub const DEFAULT_CW20: &str = "contract0";
 pub const OWNER: &str = "owner";
+
+// s1: atom
+// s2: shit
+// s3: silk
 pub const SHITTER1: &str = "shitter1";
 pub const SHITTER2: &str = "shitter2";
 pub const SHITTER3: &str = "shitter3";
-pub const SHITTER4: &str = "shitter4";
 
 fn cw20_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
@@ -37,33 +39,49 @@ fn shitstrap_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
+fn init_bad_cw20(app: &mut App, cw20_id: u64, owner: Addr) -> Addr {
+    // create another cw20
+    let cw20_init = Cw20Init {
+        name: "rtuioptaewi".into(),
+        symbol: "rtjhtjkr".into(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: None,
+        marketing: None,
+    };
+    app.instantiate_contract(cw20_id, owner.clone(), &cw20_init, &[], "cw20", None)
+        .unwrap()
+}
+
 fn instantiate_w_cw20(
     mut app: App,
     shit_id: u64,
     init: InstantiateMsg,
     cw20_id: u64,
     cw20: Cw20Init,
+    owner: Addr,
+    shitters: Vec<Addr>,
 ) -> ShitSuite {
     // init cw20
     let cw20 = app
         .instantiate_contract(
             cw20_id,
-            Addr::unchecked(OWNER),
+            owner.clone(),
             &cw20,
             &[],
             "cw20",
-            Some(OWNER.into()),
+            Some(owner.to_string()),
         )
         .unwrap();
     // init shitstrap
     let shitstrap = app
         .instantiate_contract(
             shit_id,
-            Addr::unchecked(OWNER),
+            owner.clone(),
             &init,
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(owner.to_string()),
         )
         .unwrap();
 
@@ -71,14 +89,20 @@ fn instantiate_w_cw20(
         app,
         shitstrap,
         cw20,
+        owner,
+        shitters,
     }
 }
 
-fn default_init(possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
-    // create simulation environment
-    let mut app = App::default();
-    let cw20_id = app.store_code(cw20_contract());
+fn default_init(mut app: App, possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
     let shitstrap_id = app.store_code(shitstrap_contract());
+    let cw20_id = app.store_code(cw20_contract());
+    let owner = app.api().addr_make(OWNER);
+    let s1 = app.api().addr_make(SHITTER1);
+    let s2 = app.api().addr_make(SHITTER2);
+    let s3 = app.api().addr_make(SHITTER3);
+
+    let mut shitters = Vec::new();
 
     // create cw20
     let cw20_init = Cw20Init {
@@ -87,11 +111,11 @@ fn default_init(possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
         decimals: 6,
         initial_balances: vec![
             Cw20Coin {
-                address: SHITTER2.to_string(),
+                address: s1.to_string(),
                 amount: 100000000u128.into(),
             },
             Cw20Coin {
-                address: SHITTER3.to_string(),
+                address: s2.to_string(),
                 amount: 100000000u128.into(),
             },
         ],
@@ -100,17 +124,25 @@ fn default_init(possible: Vec<PossibleShit>, cutoff: u128) -> ShitSuite {
     };
     // create shitstrap
     let init = InstantiateMsg {
-        owner: Some(OWNER.to_string()),
+        owner: Some(owner.to_string()),
         accepted: possible,
         cutoff: cutoff.into(),
-        shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
+        shitmos: cw_shit_denom::UncheckedDenom::Native("ushit".into()),
         title: "yoo".into(),
         description: "yoooooo".into(),
-        daos: todo!(),
+        daos: Vec::new(),
     };
-
+    shitters.extend(vec![s1, s2, s3]);
     // instantiate contract with cw20
-    let suite = instantiate_w_cw20(app, shitstrap_id, init, cw20_id, cw20_init.clone());
+    let suite = instantiate_w_cw20(
+        app,
+        shitstrap_id,
+        init,
+        cw20_id,
+        cw20_init.clone(),
+        owner,
+        shitters,
+    );
     // return suite
     suite
 }
@@ -119,6 +151,8 @@ pub struct ShitSuite {
     pub app: App,
     pub shitstrap: Addr,
     pub cw20: Addr,
+    pub owner: Addr,
+    pub shitters: Vec<Addr>,
 }
 
 impl ShitSuite {
@@ -126,25 +160,25 @@ impl ShitSuite {
     fn setup_default_funds(&mut self, shitstrap: Addr) -> cw_orch::anyhow::Result<(), Error> {
         self.app
             .sudo(SudoMsg::Bank(BankSudo::Mint {
-                to_address: OWNER.into(),
+                to_address: self.owner.clone().to_string(),
                 amount: vec![coin(1_000_000_000u128, "uatom")],
             }))
             .unwrap();
         self.app
             .sudo(SudoMsg::Bank(BankSudo::Mint {
-                to_address: SHITTER1.into(),
+                to_address: self.shitters[0].to_string(), // s1: atom
                 amount: vec![coin(1_000_000_000u128, "uatom")],
             }))
             .unwrap();
         self.app
             .sudo(SudoMsg::Bank(BankSudo::Mint {
-                to_address: SHITTER3.into(),
+                to_address: self.shitters[1].to_string(),
                 amount: vec![coin(1_000_000_000u128, "ushit")],
             }))
             .unwrap();
         self.app
             .sudo(SudoMsg::Bank(BankSudo::Mint {
-                to_address: SHITTER2.into(),
+                to_address: self.shitters[2].to_string(),
                 amount: vec![coin(1_000_000_000u128, "usilk")],
             }))
             .unwrap();
@@ -173,12 +207,13 @@ impl ShitSuite {
                 amount: amount.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
                     shit_strapper: sender.to_string(),
-                    dao: todo!(),
+                    dao: None,
                 })?,
             }),
             &vec![],
         )
     }
+
     /// helper function to participate in shitstrap with native coin
     fn participate_native(
         &mut self,
@@ -191,10 +226,10 @@ impl ShitSuite {
             self.shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked {
-                    denom: cw_denom::UncheckedDenom::Native(denom.into()),
+                    denom: cw_shit_denom::UncheckedDenom::Native(denom.into()),
                     amount: amount.into(),
                 },
-                dao: todo!(),
+                dao: None,
             },
             &vec![coin(amount, denom)],
         )
@@ -203,6 +238,7 @@ impl ShitSuite {
 
 #[test]
 fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
+    let mut app = App::default();
     let mut possible = vec![
         PossibleShit::native_denom("uatom", 1_000_000u128),
         PossibleShit::native_denom("uatom", 1_000_000u128),
@@ -214,30 +250,33 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let description = "y".repeat(1001).into();
     let cutoff = Uint128::zero();
 
-    let mut init_msg = InstantiateMsg {
-        owner: Some(OWNER.to_string()),
-        accepted: possible.clone(),
-        cutoff: cutoff.into(),
-        shitmos: cw_denom::UncheckedDenom::Native("ushit".into()),
-        title,
-        description,
-        daos: todo!(),
-    };
     // create default testing suite
     let mut shit = default_init(
+        app,
         vec![PossibleShit::native_denom("uatom", 1_000_000u128)], // 1:1 ratio
         222u128,
     );
+
+    let mut init_msg = InstantiateMsg {
+        owner: Some(shit.owner.to_string()),
+        accepted: possible.clone(),
+        cutoff: cutoff.into(),
+        shitmos: cw_shit_denom::UncheckedDenom::Native("ushit".into()),
+        title,
+        description,
+        daos: Vec::new(),
+    };
+
     // init shitstrap
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(ContractError::ShittyCutoffRatio {}, err.downcast().unwrap());
@@ -245,12 +284,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(ContractError::ShittyTitle {}, err.downcast().unwrap());
@@ -258,12 +297,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(ContractError::ShittyDescription {}, err.downcast().unwrap());
@@ -271,12 +310,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(
@@ -288,12 +327,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(ContractError::SameShit {}, err.downcast().unwrap());
@@ -302,12 +341,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap_err();
     assert_eq!(
@@ -318,12 +357,12 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
     init_msg.accepted = possible;
     shit.app
         .instantiate_contract(
-            2,
-            Addr::unchecked(OWNER),
+            1,
+            shit.owner.clone(),
             &init_msg.clone(),
             &[],
             "shitstrap",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap();
 
@@ -332,8 +371,10 @@ fn test_bad_init() -> cw_orch::anyhow::Result<(), Error> {
 
 #[test]
 fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
+    let mut app = App::default();
     // create default testing suite
     let mut shit = default_init(
+        app,
         vec![PossibleShit::native_denom("uatom", 1000000000000000000u128)], // 1:1 ratio
         222000000u128,
     );
@@ -341,25 +382,27 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     let first_deposit = 221_000_000u128;
     let shitstrap = shit.shitstrap.clone();
     shit.setup_default_funds(shitstrap.clone())?;
+    let s1 = shit.shitters[0].clone();
 
     // error with wrong native token
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(OWNER.to_string()),
+            shit.owner.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("usilk", first_deposit),
-                dao: todo!(),
+                dao: None,
             },
             &vec![coin(first_deposit, "uatom")],
         )
         .unwrap_err();
     assert_eq!(ContractError::WrongShit {}, err.downcast().unwrap());
-
+    let cw20_id = shit.app.store_code(cw20_contract());
+    let cw20 = &init_bad_cw20(&mut shit.app, cw20_id, shit.owner.clone()).to_string();
     // error with wrong cw20 token
     let err = shit
-        .participate_cw20(OWNER, first_deposit, "contract0")
+        .participate_cw20(&shit.owner.to_string(), first_deposit, cw20)
         .unwrap_err();
     assert_eq!(ContractError::WrongShit {}, err.downcast().unwrap());
 
@@ -367,11 +410,11 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(SHITTER1.to_string()),
+            s1.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", first_deposit),
-                dao: todo!(),
+                dao: None,
             },
             &vec![],
         )
@@ -386,11 +429,11 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     // error with correct token, but less sent then specified
     shit.app
         .execute_contract(
-            Addr::unchecked(SHITTER1.to_string()),
+            s1.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", first_deposit),
-                dao: todo!(),
+                dao: None,
             },
             &vec![coin(22, "uatom")],
         )
@@ -401,11 +444,11 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     block.height += 1;
     shit.app.set_block(block);
 
-    let og_owner_bal = shit.app.wrap().query_all_balances(OWNER)?[0].clone();
+    let og_owner_bal = shit.app.wrap().query_all_balances(shit.owner.clone())?[0].clone();
     assert_eq!(og_owner_bal.amount, Uint128::from(DEFAULT_BALANCE));
 
     // participate in shitstrap with correct token
-    shit.participate_native(SHITTER1, 221_000_000, "uatom")?;
+    shit.participate_native(&s1.to_string(), 221_000_000, "uatom")?;
 
     // confirm shit_rate is calculated correctly
     let res: Uint128 = shit
@@ -423,16 +466,19 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
         },
     )?;
     // calulate expected
-    let calculated = balance.amount * Decimal::from_atomics(shit_rate.unwrap(), MAX_DEC_PRECISION)?;
+    let dec = Decimal::from_atomics(shit_rate.unwrap(), MAX_DEC_PRECISION)?;
+    let calculated = balance
+        .amount
+        .multiply_ratio(dec.numerator(), dec.denominator());
     assert_eq!(calculated, Uint128::from(first_deposit));
 
     // shitstrap reaches limit
     shit.app.execute_contract(
-        Addr::unchecked(SHITTER1.to_string()),
+        s1.clone(),
         shitstrap.clone(),
         &crate::msg::ExecuteMsg::ShitStrap {
             shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
-            dao: todo!(),
+            dao: None,
         },
         &vec![coin(2000000u128, "uatom")],
     )?;
@@ -452,20 +498,20 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     // confirm balances
     let balance = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
     assert_eq!(balance.amount, Uint128::from(1_000_000u128)); // 1 token is waiting to be redeemed by last shit strapper
-    let balance = shit.app.wrap().query_balance(SHITTER1, "uatom")?;
+    let balance = shit.app.wrap().query_balance(s1.clone(), "uatom")?;
     assert_eq!(balance.amount, Uint128::from(777_000_000u128));
-    let owner_bal = shit.app.wrap().query_all_balances(OWNER)?[0].clone();
+    let owner_bal = shit.app.wrap().query_all_balances(shit.owner)?[0].clone();
     assert_eq!(owner_bal.amount, Uint128::from(1_222_000_000u128)); // owner received 222 ATOM
 
     // no more shitstrapping can commence
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(SHITTER1.to_string()),
+            s1.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
-                dao: todo!(),
+                dao: None,
             },
             &vec![coin(2_000_000u128, "uatom")],
         )
@@ -474,7 +520,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
 
     // refund on shitstrapping occurs
     shit.app.execute_contract(
-        Addr::unchecked(SHITTER1.to_string()),
+        s1.clone(),
         shitstrap.clone(),
         &crate::msg::ExecuteMsg::RefundShitter {},
         &[],
@@ -486,7 +532,7 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
     shit.app.set_block(block);
 
     // should have 1 extra token sent back
-    let balance = shit.app.wrap().query_balance(SHITTER1, "uatom")?;
+    let balance = shit.app.wrap().query_balance(s1.clone(), "uatom")?;
     assert_eq!(balance.amount, Uint128::from(778_000_000u128));
     let balance = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
     assert_eq!(balance.amount, Uint128::zero()); // 1 token is no longer waiting to be redeemed by last shit strapper
@@ -495,24 +541,29 @@ fn test_shitstrap() -> cw_orch::anyhow::Result<(), Error> {
 
 #[test]
 fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
+    let mut app = App::default();
+    let initer = app.api().addr_make("eh");
+    let cw20_id = app.store_code(cw20_contract());
+    let cw20 = &init_bad_cw20(&mut app, cw20_id, initer).to_string();
     // create testing suite
     let first_deposit = 100_000_000u128; // 100
     let cw20_shit_ratio = Uint128::from(640000000000000000u128); // 64%
     let atom_shit_ratio = Uint128::from(360000000000000000u128); // 36%
-
     let mut shit = default_init(
+        app,
         vec![
             PossibleShit::native_denom("uatom", atom_shit_ratio.clone().into()),
-            PossibleShit::native_cw20(DEFAULT_CW20, cw20_shit_ratio.clone().into()),
+            PossibleShit::native_cw20(cw20, cw20_shit_ratio.clone().into()),
         ],
         222000000u128,
     );
 
     let shitstrap = shit.shitstrap.clone();
+    let s1 = shit.shitters[0].clone(); // atom
+    let s2 = shit.shitters[1].clone(); //shit
     shit.setup_default_funds(shitstrap.clone())?;
-
-    let first =
-        Uint128::new(first_deposit) * Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?;
+    let dec = Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?;
+    let first = Uint128::new(first_deposit).multiply_ratio(dec.numerator(), dec.denominator());
 
     shit.app
         .sudo(SudoMsg::Bank(BankSudo::Mint {
@@ -529,7 +580,7 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
     );
 
     // user 1 funds with native
-    shit.participate_native(SHITTER1, 100_000_000, "uatom")?;
+    shit.participate_native(&s1.to_string(), 100_000_000, "uatom")?;
 
     // confirm shit_rate is calculated correctly
     let res: Uint128 = shit
@@ -539,7 +590,7 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
     assert_eq!(res, first);
 
     // confirm funds made it to shitter
-    let res = shit.app.wrap().query_all_balances(SHITTER1)?;
+    let res = shit.app.wrap().query_all_balances(&s1)?;
     assert_eq!(
         res,
         vec![
@@ -560,21 +611,10 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
             )
         ]
     );
-    // let res = shit.participate_cw20(SHITTER2, 100_000_000, DEFAULT_CW20)?;
-    // println!("res: {:#?}", res);
 
-    shit.app.execute_contract(
-        Addr::unchecked(SHITTER2),
-        Addr::unchecked(DEFAULT_CW20),
-        &cw20::Cw20ExecuteMsg::Transfer {
-            recipient: shit.shitstrap.to_string(),
-            amount: 100_000_000u128.into(),
-        },
-        &vec![],
-    )?;
     // end shitstrap early
     let res = shit.app.execute_contract(
-        Addr::unchecked(OWNER.to_string()),
+        shit.owner.clone(),
         shitstrap.clone(),
         &crate::msg::ExecuteMsg::Flush {},
         &[],
@@ -583,7 +623,7 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
     // confirm uatom was sent with bank
     res.assert_event(
         &Event::new("transfer")
-            .add_attribute("recipient", OWNER.to_string())
+            .add_attribute("recipient", shit.owner.to_string())
             .add_attribute("sender", shitstrap.to_string())
             .add_attribute(
                 "amount",
@@ -592,7 +632,7 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
     );
     res.assert_event(
         &Event::new("transfer")
-            .add_attribute("recipient", OWNER.to_string())
+            .add_attribute("recipient", shit.owner.to_string())
             .add_attribute("sender", shitstrap.to_string())
             .add_attribute("amount", first_deposit.to_string() + "uatom"),
     );
@@ -602,10 +642,7 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
     assert_eq!(res, vec![coin(1_000_000_000_000u128, "ushit")]);
 
     // confirm shistrap owner now has updated balance
-    let res = shit
-        .app
-        .wrap()
-        .query_all_balances(Addr::unchecked(OWNER.to_string()))?;
+    let res = shit.app.wrap().query_all_balances(shit.owner)?;
     assert_eq!(
         res,
         vec![
@@ -619,15 +656,20 @@ fn test_fee_destination() -> cw_orch::anyhow::Result<(), Error> {
 
 #[test]
 fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Error> {
+    let mut app: App = App::default();
+    let initer = app.api().addr_make("eh");
+    let cw20_id = app.store_code(cw20_contract());
+    let cw20 = &init_bad_cw20(&mut app, cw20_id, initer).to_string();
     // create testing suite
     let first_deposit = 100_000_000u128; // 100
     let cw20_shit_ratio = Uint128::from(640000000000000000u128); // 64%
     let atom_shit_ratio = Uint128::from(360000000000000000u128); // 36%
 
     let mut shit = default_init(
+        app,
         vec![
             PossibleShit::native_denom("uatom", atom_shit_ratio.clone().into()),
-            PossibleShit::native_cw20(DEFAULT_CW20, cw20_shit_ratio.clone().into()),
+            PossibleShit::native_cw20(cw20, cw20_shit_ratio.clone().into()),
         ],
         222000000u128,
     );
@@ -635,15 +677,19 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
     let shitstrap = shit.shitstrap.clone();
     shit.setup_default_funds(shitstrap.clone())?;
 
+    let s1 = shit.shitters[0].clone();
+    let s2 = shit.shitters[1].clone();
+    let s3 = shit.shitters[2].clone();
+
     // error with wrong native token
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(SHITTER2.to_string()),
+            s3.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("usilk", first_deposit),
-                dao: todo!(),
+                dao: None,
             },
             &vec![coin(first_deposit, "usilk")],
         )
@@ -657,11 +703,11 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
         decimals: 6,
         initial_balances: vec![
             Cw20Coin {
-                address: SHITTER2.to_string(),
+                address: s2.to_string(),
                 amount: 1000u128.into(),
             },
             Cw20Coin {
-                address: SHITTER3.to_string(),
+                address: s3.to_string(),
                 amount: 1000u128.into(),
             },
         ],
@@ -673,11 +719,11 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
         .app
         .instantiate_contract(
             1u64,
-            Addr::unchecked(OWNER),
+            shit.owner.clone(),
             &cw20_init,
             &[],
             "cw20",
-            Some(OWNER.into()),
+            Some(shit.owner.to_string()),
         )
         .unwrap();
 
@@ -688,11 +734,11 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
             bad_cw20,
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::Receive(Cw20ReceiveMsg {
-                sender: SHITTER2.to_string(),
+                sender: s2.to_string(),
                 amount: 200u128.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
-                    shit_strapper: SHITTER2.to_string(),
-                    dao: todo!(),
+                    shit_strapper: s2.to_string(),
+                    dao: None,
                 })?,
             }),
             &vec![],
@@ -701,57 +747,57 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
     assert_eq!(ContractError::WrongShit {}, err.downcast().unwrap());
 
     // user 1 funds with native
-    shit.participate_native(SHITTER1, 100_000_000, "uatom")?;
+    shit.participate_native(&s1.to_string(), 100_000_000, "uatom")?;
     // confirm shit_rate is calculated correctly
     let res: Uint128 = shit
         .app
         .wrap()
         .query_wasm_smart(shitstrap.clone(), &crate::msg::QueryMsg::HasShit {})?;
+    let dec = Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?;
     assert_eq!(
         res,
-        Uint128::new(first_deposit) * Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?
+        Uint128::new(first_deposit).multiply_ratio(dec.numerator(), dec.denominator())
     );
     // confirm funds made it to shitter
-    let res = shit.app.wrap().query_all_balances(SHITTER1)?;
+    let res = shit.app.wrap().query_all_balances(s1)?;
+    let dec = Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?;
     assert_eq!(
         res,
         vec![
             coin(DEFAULT_BALANCE - first_deposit, "uatom"),
             coin(
-                (Uint128::new(first_deposit)
-                    * Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?)
-                .u128(),
+                (Uint128::new(first_deposit).multiply_ratio(dec.numerator(), dec.denominator()))
+                    .u128(),
                 "ushit"
             )
         ]
     );
 
     // user 2 funds with coin. should reflect 50% shit weight of native
-    shit.participate_cw20(SHITTER2, 100_000_000, "contract0")?;
+    shit.participate_cw20(&s3.to_string(), 100_000_000, cw20)?;
 
     // confirm shit_rate is calculated correctly
     let res: Uint128 = shit
         .app
         .wrap()
         .query_wasm_smart(shitstrap.clone(), &crate::msg::QueryMsg::HasShit {})?;
-
+    let dec = Decimal::from_atomics(cw20_shit_ratio, MAX_DEC_PRECISION)?;
+    let dec2 = Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?;
     // the expected shit_strapped, after 2 participants
-    let expected = (Uint128::new(first_deposit)
-        * Decimal::from_atomics(cw20_shit_ratio, MAX_DEC_PRECISION)?)
-        + (Uint128::new(first_deposit)
-            * Decimal::from_atomics(atom_shit_ratio, MAX_DEC_PRECISION)?);
+    let expected = (Uint128::new(first_deposit).multiply_ratio(dec.numerator(), dec.denominator()))
+        + (Uint128::new(first_deposit).multiply_ratio(dec2.numerator(), dec2.denominator()));
 
     assert_eq!(res, expected);
 
     // confirm native token balance is correct
-    let res = shit.app.wrap().query_all_balances(SHITTER2)?;
+    let res = shit.app.wrap().query_all_balances(s3.clone())?;
+    let dec = Decimal::from_atomics(cw20_shit_ratio, MAX_DEC_PRECISION)?;
     assert_eq!(
         res,
         vec![
             coin(
-                (Uint128::new(first_deposit)
-                    * Decimal::from_atomics(cw20_shit_ratio, MAX_DEC_PRECISION)?)
-                .u128(),
+                (Uint128::new(first_deposit).multiply_ratio(dec.numerator(), dec.denominator()))
+                    .u128(),
                 "ushit"
             ),
             coin(DEFAULT_BALANCE, "usilk"), // has full balance of non accepted token
@@ -764,28 +810,31 @@ fn test_mult_participants_mult_possible_shit() -> cw_orch::anyhow::Result<(), Er
 // test shit strap w/ cw20, not using cw20 recieve
 #[test]
 fn test_cw20_receive() -> anyhow::Result<(), Error> {
-    let mut shit = default_init(
-        vec![PossibleShit::native_cw20(DEFAULT_CW20, 100u128)],
-        222u128,
-    );
+    let mut app = App::default();
+    let initer = app.api().addr_make("eh");
+    let cw20_id = app.store_code(cw20_contract());
+    let cw20 = &init_bad_cw20(&mut app, cw20_id, initer).to_string();
+    let mut shit = default_init(app, vec![PossibleShit::native_cw20(cw20, 100u128)], 222u128);
 
     let first_deposit = 100u128;
 
     let shitstrap = shit.shitstrap.clone();
+    let s1 = shit.shitters[0].clone();
+    let s2 = shit.shitters[1].clone();
     shit.setup_default_funds(shitstrap.clone())?;
 
     // cannot directly call shit_strap entry point with cw20
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(SHITTER1.to_string()),
+            s1.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked {
-                    denom: cw_denom::UncheckedDenom::Cw20(DEFAULT_CW20.into()),
+                    denom: cw_shit_denom::UncheckedDenom::Cw20(cw20.clone()),
                     amount: first_deposit.into(),
                 },
-                dao: todo!(),
+                dao: None,
             },
             &vec![],
         )
@@ -797,14 +846,14 @@ fn test_cw20_receive() -> anyhow::Result<(), Error> {
     let err = shit
         .app
         .execute_contract(
-            Addr::unchecked(SHITTER2.to_string()),
+            s2.clone(),
             shitstrap.clone(),
             &crate::msg::ExecuteMsg::Receive(Cw20ReceiveMsg {
-                sender: SHITTER2.to_string(),
+                sender: s2.to_string(),
                 amount: first_deposit.into(),
                 msg: to_json_binary(&ReceiveMsg::ShitStrap {
-                    shit_strapper: SHITTER2.to_string(),
-                    dao: todo!(),
+                    shit_strapper: s2.to_string(),
+                    dao: None,
                 })?,
             }),
             &vec![],

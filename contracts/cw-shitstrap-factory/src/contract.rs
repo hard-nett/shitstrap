@@ -12,7 +12,6 @@ use cw_shitstrap::{
     state::Config as ShitstrapConfig,
 };
 use cw_storage_plus::Bound;
-use cw_utils::parse_reply_instantiate_data;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -260,31 +259,53 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INSTANTIATE_CONTRACT_REPLY_ID => {
-            let res = parse_reply_instantiate_data(msg)?;
-            let contract_addr = deps.api.addr_validate(&res.contract_address)?;
+            match msg.result {
+                cosmwasm_std::SubMsgResult::Ok(res) => {
+                    let contract_address = res
+                        .events
+                        .iter()
+                        .find(|e| e.ty == "instantiate")
+                        .and_then(|ev| ev.attributes.iter().find(|a| a.key == "contract_address"))
+                        .or_else(|| {
+                            // Fallback: sometimes it's in a "wasm" event with key "contract"
+                            res.events
+                                .iter()
+                                .find(|e| e.ty == "wasm")
+                                .and_then(|ev| ev.attributes.iter().find(|a| a.key == "contract"))
+                        })
+                        .ok_or_else(|| ContractError::ReplyParseError {
+                            err: "contract_address not found in reply".to_string(),
+                        })?;
+                    // Validate the address
+                    let validated_addr = deps.api.addr_validate(&contract_address.value)?;
 
-            // Query new shistrap payment contract for info
-            let shit_strap: ShitstrapConfig = deps
-                .querier
-                .query_wasm_smart(contract_addr.clone(), &ShitstrapQueryMsg::Config {})?;
+                    // Query new shistrap payment contract for info
+                    let shit_strap: ShitstrapConfig = deps
+                        .querier
+                        .query_wasm_smart(validated_addr.clone(), &ShitstrapQueryMsg::Config {})?;
 
-            let instantiator = TMP_INSTANTIATOR_INFO.load(deps.storage)?;
+                    let instantiator = TMP_INSTANTIATOR_INFO.load(deps.storage)?;
 
-            // Save shistrap contract payment info
-            shitstrap_contracts().save(
-                deps.storage,
-                contract_addr.as_ref(),
-                &ShitstrapContract {
-                    instantiator: instantiator.to_string(),
-                    shit: shit_strap.shitmos_addr.to_string(),
-                    contract: contract_addr.to_string(),
-                },
-            )?;
+                    // Save shistrap contract payment info
+                    shitstrap_contracts().save(
+                        deps.storage,
+                        validated_addr.as_ref(),
+                        &ShitstrapContract {
+                            instantiator: instantiator.to_string(),
+                            shit: shit_strap.shitmos_addr.to_string(),
+                            contract: validated_addr.to_string(),
+                        },
+                    )?;
 
-            // Clear tmp instatiator info
-            TMP_INSTANTIATOR_INFO.remove(deps.storage);
+                    // Clear tmp instatiator info
+                    TMP_INSTANTIATOR_INFO.remove(deps.storage);
 
-            Ok(Response::default().add_attribute("new_shitstrap_contract", contract_addr))
+                    Ok(Response::default().add_attribute("new_shitstrap_contract", validated_addr))
+                }
+                cosmwasm_std::SubMsgResult::Err(_) => {
+                    Err(ContractError::UnknownReplyId { id: msg.id })
+                }
+            }
         }
         _ => Err(ContractError::UnknownReplyId { id: msg.id }),
     }
