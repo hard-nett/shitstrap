@@ -1,0 +1,11 @@
+[package]
+name = "shit-scripts"
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+cw-shitstrap  = { workspace = true, features = ["interface"] }
+cw-shitstrap-factory  = { workspace = true, features = ["interface"] }
+cw-orch = { workspace = true, features = ["daemon"] }

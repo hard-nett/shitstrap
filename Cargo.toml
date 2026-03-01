@@ -3,7 +3,7 @@ name = "cw-shitstrap"
 exclude = [ ]
 members =  [
   "contracts/cw-shitstrap",
-  "contracts/cw-shitstrap-factory", "packages/cw-shit-denom",
+  "contracts/cw-shitstrap-factory", "packages/cw-shit-denom", "scripts/shit-scripts",
 ]
 resolver = "2"
 
@@ -42,6 +42,8 @@ cw20 = "2.0.0"
 cw20-base = "2.0.0"
 dao-interface = {version =  "2.6.0"}
 cw-orch = "0.28.0"
+cw-shitstrap = { path = "contracts/cw-shitstrap"}
+cw-shitstrap-factory = { path = "contracts/cw-shitstrap-factory"}
 cw-shit-denom = { path = "packages/cw-shit-denom"}
 schemars = "0.8.16"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
