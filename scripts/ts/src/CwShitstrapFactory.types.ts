@@ -100,6 +100,7 @@ export interface ShitstrapContract {
   contract: string;
   instantiator: string;
   shit: string;
+  slop: PossibleShit[];
 }
 export interface OwnershipForAddr {
   owner?: Addr | null;

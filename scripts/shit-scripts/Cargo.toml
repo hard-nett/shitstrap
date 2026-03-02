@@ -9,3 +9,4 @@ version.workspace = true
 cw-shitstrap  = { workspace = true, features = ["interface"] }
 cw-shitstrap-factory  = { workspace = true, features = ["interface"] }
 cw-orch = { workspace = true, features = ["daemon"] }
+cw-shit-denom = { workspace = true  }

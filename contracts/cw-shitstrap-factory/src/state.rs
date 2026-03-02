@@ -1,5 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
+use cw_shitstrap::msg::PossibleShit;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 
 /// Temporarily holds the address of the instantiator for use in submessages
@@ -10,6 +11,7 @@ pub const SHITSTRAP_CODE_ID: Item<u64> = Item::new("pci");
 pub struct ShitstrapContract {
     pub contract: String,
     pub instantiator: String,
+    pub slop: Vec<PossibleShit>,
     pub shit: String,
 }
 

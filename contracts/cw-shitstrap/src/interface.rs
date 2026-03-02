@@ -1,17 +1,17 @@
 use crate::{
-    contract::{execute, instantiate, query},
+    contract::{execute, instantiate, query, CW_SHITSTRAP},
     msg::*,
 };
 use cw_orch::prelude::*;
 
-#[cw_orch::interface(InstantiateMsg, ExecuteMsg, QueryMsg, Empty, id = "cw-shitstrap")]
+#[cw_orch::interface(InstantiateMsg, ExecuteMsg, QueryMsg, Empty, id = CW_SHITSTRAP)]
 pub struct CwShitstrap;
 
 impl<Chain: CwEnv> Uploadable for CwShitstrap<Chain> {
     /// Return the path to the wasm file corresponding to the contract
     fn wasm(_chain: &ChainInfoOwned) -> WasmPath {
         artifacts_dir_from_workspace!()
-            .find_wasm_path("cw_shitstrap")
+            .find_wasm_path_from_crates_label(CW_SHITSTRAP)
             .unwrap()
     }
     /// Returns a CosmWasm contract wrapper
