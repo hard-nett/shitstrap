@@ -19,7 +19,7 @@ use crate::state::{
     shitstrap_contracts, ShitstrapContract, SHITSTRAP_CODE_ID, TMP_INSTANTIATOR_INFO,
 };
 
-pub(crate) const CONTRACT_NAME: &str = "crates.io:cw-shitstrap-factory";
+pub(crate) const CW_SHITSTRAP_FACTORY: &str = "cw-shitstrap-factory";
 pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const INSTANTIATE_CONTRACT_REPLY_ID: u64 = 0;
 pub const DEFAULT_LIMIT: u32 = 10;
@@ -33,7 +33,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     cw_ownable::initialize_owner(deps.storage, deps.api, msg.owner.as_deref())?;
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, CW_SHITSTRAP_FACTORY, CONTRACT_VERSION)?;
     SHITSTRAP_CODE_ID.save(deps.storage, &msg.shitstrap_id)?;
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -267,7 +267,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                         .find(|e| e.ty == "instantiate")
                         .and_then(|ev| ev.attributes.iter().find(|a| a.key == "contract_address"))
                         .or_else(|| {
-                            // Fallback: sometimes it's in a "wasm" event with key "contract"
                             res.events
                                 .iter()
                                 .find(|e| e.ty == "wasm")
@@ -292,6 +291,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                         validated_addr.as_ref(),
                         &ShitstrapContract {
                             instantiator: instantiator.to_string(),
+                            slop: shit_strap.accepted,
                             shit: shit_strap.shitmos_addr.to_string(),
                             contract: validated_addr.to_string(),
                         },

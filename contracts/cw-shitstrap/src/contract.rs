@@ -15,7 +15,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_shit_denom::{CheckedDenom, UncheckedDenom};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw-shit-strap";
+pub const CW_SHITSTRAP: &str = " cw-shitstrap";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -25,7 +25,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, CW_SHITSTRAP, CONTRACT_VERSION)?;
     // set owner
     let owner = match msg.owner.is_some() {
         true => deps.api.addr_validate(&msg.owner.unwrap())?,

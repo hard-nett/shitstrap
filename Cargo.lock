@@ -970,9 +970,8 @@ dependencies = [
 
 [[package]]
 name = "cw-orch"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bb8dfb35ae85f05874dcb6b2526b41dfa9007db83a3ccad451b4536a544cc1c"
+version = "0.27.0"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "anyhow",
  "cosmrs",
@@ -996,8 +995,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-contract-derive"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bad52865e313bb7ed3f3938f7ad9d566e430fb6143a63476c22bed505ea78cd7"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "convert_case",
  "quote",
@@ -1007,8 +1005,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-core"
 version = "2.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd60ffab817101418b26b6bceadfdfc430dad4219c7e4cd972f8838e21190981"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "abstract-cw-multi-test",
  "anyhow",
@@ -1027,8 +1024,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-daemon"
 version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc63b5ac1a6095c0d8803925b08b5353ab3a129f40a9d7d5a61a55c4bd81ae13"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1074,8 +1070,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-fns-derive"
 version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "194e944e6bcb51a53f99e2b0a510ecc8919605b9a83d93641748cf1b163315f6"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -1086,8 +1081,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-mock"
 version = "0.24.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce639c909e59fc1505f56772b9a37057a54d3c5a20f7a4c197cd518a27ce9770"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "abstract-cw-multi-test",
  "cosmwasm-std 2.3.2",
@@ -1101,8 +1095,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-networks"
 version = "0.24.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab644b0b5a6c7450d18e04874e569b27464fdb0a3c90732f5f94b895f627892e"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "cw-orch-core",
  "serde",
@@ -1111,8 +1104,7 @@ dependencies = [
 [[package]]
 name = "cw-orch-traits"
 version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ccb1670cc49a7a10c425ba1072cb607eb00d8085f97692877b9bdb00d14dd3d"
+source = "git+https://github.com/permissionlessweb/cw-orchestrator?branch=feat%2Fwasm-path#708f4adda9824201d83b5bd7a7432f21286483be"
 dependencies = [
  "cw-orch-core",
  "prost-types 0.13.5",
@@ -3518,6 +3510,7 @@ name = "shit-scripts"
 version = "0.1.0"
 dependencies = [
  "cw-orch",
+ "cw-shit-denom",
  "cw-shitstrap",
  "cw-shitstrap-factory",
 ]

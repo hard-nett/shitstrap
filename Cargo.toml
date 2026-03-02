@@ -41,7 +41,7 @@ cw2 = "2.0.0"
 cw20 = "2.0.0"
 cw20-base = "2.0.0"
 dao-interface = {version =  "2.6.0"}
-cw-orch = "0.28.0"
+cw-orch = { git = "https://github.com/permissionlessweb/cw-orchestrator", branch = "feat/wasm-path" }
 cw-shitstrap = { path = "contracts/cw-shitstrap"}
 cw-shitstrap-factory = { path = "contracts/cw-shitstrap-factory"}
 cw-shit-denom = { path = "packages/cw-shit-denom"}

@@ -8,10 +8,13 @@ use cw_shitstrap_factory::{
     msg::{AsyncQueryMsgFns as _, ExecuteMsgFns as _, QueryMsgFns as _},
 };
 
-#[derive(Clone, Debug)]
+pub use cw_shit_denom::UncheckedDenom;
+pub use cw_shitstrap::msg::{InstantiateMsg as ShitInitMsg, PossibleShit};
+pub use cw_shitstrap_factory::msg::InstantiateMsg as ShitFactoryInitMsg;
+
+#[derive(Clone, Debug, Default)]
 pub struct CwShitstrapSuiteDeployData {
-    pub shit: Vec<cw_shitstrap::msg::InstantiateMsg>,
-    pub factory: Option<cw_shitstrap_factory::msg::InstantiateMsg>,
+    pub shit: Vec<ShitInitMsg>,
     pub admin: Option<Addr>,
 }
 
@@ -58,9 +61,20 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwShitstrapSuite<Chain> 
         let mut suite = CwShitstrapSuite::store_on(chain.clone())?;
         match data {
             Some(d) => {
-                if let Some(i) = d.factory {
-                    suite.factory.instantiate(&i, d.admin.as_ref(), &[])?;
-                }
+                // Always create a factory on deploy
+                suite.factory.instantiate(
+                    &ShitFactoryInitMsg {
+                        owner: d
+                            .admin
+                            .as_ref()
+                            .map(|d| Some(d.to_string()))
+                            .unwrap_or_default(),
+                        shitstrap_id: suite.shitstrap.code_id()?,
+                    },
+                    d.admin.as_ref(),
+                    &[],
+                )?;
+
                 for (i, init) in d.shit.iter().enumerate() {
                     suite
                         .factory
