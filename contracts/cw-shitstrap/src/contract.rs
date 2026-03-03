@@ -15,7 +15,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_shit_denom::{CheckedDenom, UncheckedDenom};
 
 // version info for migration info
-pub const CW_SHITSTRAP: &str = " cw-shitstrap";
+pub const CW_SHITSTRAP: &str = "cw-shitstrap";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]

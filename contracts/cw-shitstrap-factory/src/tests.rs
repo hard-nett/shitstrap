@@ -1,4 +1,4 @@
-use cosmwasm_std::{coins, Addr, Empty, Uint128};
+use cosmwasm_std::{coins, to_json_binary, Addr, Empty, Uint128};
 use cw20::Cw20Coin;
 use cw_multi_test::{App, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_ownable::OwnershipError;
@@ -13,6 +13,7 @@ use crate::{
 
 const ALICE: &str = "alice";
 const BOB: &str = "bob";
+const CREATOR: &str = "creator";
 const INITIAL_BALANCE: u128 = 1000000000;
 const NATIVE_DENOM: &str = "denom";
 
@@ -49,34 +50,29 @@ pub fn test_instantiate_native_payroll_contract() {
     let mut app = App::default();
     let code_id = app.store_code(factory_contract());
     let shitstrap_code_id = app.store_code(cw_vesting_contract());
-
+    let a = app.api().addr_make(ALICE);
+    let b = app.api().addr_make(BOB);
+    let c: Addr = app.api().addr_make(CREATOR);
     // Instantiate factory with only Alice allowed to instantiate payroll contracts
     let instantiate = InstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         shitstrap_id: shitstrap_code_id,
     };
     let factory_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("CREATOR"),
-            &instantiate,
-            &[],
-            "cw-admin-factory",
-            None,
-        )
+        .instantiate_contract(code_id, c, &instantiate, &[], "cw-admin-factory", None)
         .unwrap();
 
     // Mint alice and bob native tokens
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: ALICE.to_string(),
+            to_address: a.to_string(),
             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
         }
     }))
     .unwrap();
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: BOB.to_string(),
+            to_address: b.to_string(),
             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
         }
     }))
@@ -87,7 +83,7 @@ pub fn test_instantiate_native_payroll_contract() {
 
     let instantiate_payroll_msg = ExecuteMsg::CreateNativeShitStrapContract {
         instantiate_msg: ShitstrapInstantiateMsg {
-            owner: Some(ALICE.to_string()),
+            owner: Some(a.to_string()),
             title: "title".to_string(),
             description: "desc".to_string(),
             accepted: vec![PossibleShit {
@@ -96,15 +92,14 @@ pub fn test_instantiate_native_payroll_contract() {
             }],
             cutoff: Uint128::new(1000000),
             shitmos: UncheckedDenom::Native("ubtsg".into()),
-
-            daos: todo!(),
+            daos: Vec::new(),
         },
         label: "Payroll".to_string(),
     };
 
     let res = app
         .execute_contract(
-            Addr::unchecked(ALICE),
+            a.clone(),
             factory_addr.clone(),
             &instantiate_payroll_msg,
             &coins(amount.into(), NATIVE_DENOM),
@@ -114,7 +109,7 @@ pub fn test_instantiate_native_payroll_contract() {
     // BOB can't instantiate as owner is configured
     let err: ContractError = app
         .execute_contract(
-            Addr::unchecked(BOB),
+            b.clone(),
             factory_addr.clone(),
             &instantiate_payroll_msg,
             &coins(amount.into(), NATIVE_DENOM),
@@ -134,10 +129,7 @@ pub fn test_instantiate_native_payroll_contract() {
         .wrap()
         .query_wasm_contract_info(cw_vesting_addr)
         .unwrap();
-    assert_eq!(
-        contract_info.admin,
-        Some(Addr::unchecked(ALICE.to_string()))
-    );
+    assert_eq!(contract_info.admin, Some(a.clone()));
 
     // Test query list of contracts
     let contracts: Vec<ShitstrapContract> = app
@@ -158,7 +150,7 @@ pub fn test_instantiate_native_payroll_contract() {
         .query_wasm_smart(
             factory_addr.clone(),
             &QueryMsg::ListShitstrapContractsByInstantiator {
-                instantiator: ALICE.to_string(),
+                instantiator: a.to_string(),
                 start_after: None,
                 limit: None,
             },
@@ -172,7 +164,7 @@ pub fn test_instantiate_native_payroll_contract() {
         .query_wasm_smart(
             factory_addr.clone(),
             &QueryMsg::ListShitstrapContractsByInstantiator {
-                instantiator: BOB.to_string(),
+                instantiator: b.to_string(),
                 start_after: None,
                 limit: None,
             },
@@ -212,6 +204,9 @@ pub fn test_instantiate_native_payroll_contract() {
 #[test]
 pub fn test_instantiate_cw20_payroll_contract() {
     let mut app = App::default();
+    let a = app.api().addr_make(ALICE);
+    let b = app.api().addr_make(BOB);
+    let c: Addr = app.api().addr_make(CREATOR);
     let code_id = app.store_code(factory_contract());
     let cw20_code_id = app.store_code(cw20_contract());
     let cw_vesting_code_id = app.store_code(cw_vesting_contract());
@@ -220,13 +215,13 @@ pub fn test_instantiate_cw20_payroll_contract() {
     let cw20_addr = app
         .instantiate_contract(
             cw20_code_id,
-            Addr::unchecked(ALICE),
+            a.clone(),
             &cw20_base::msg::InstantiateMsg {
                 name: "cw20 token".to_string(),
                 symbol: "cwtwenty".to_string(),
                 decimals: 6,
                 initial_balances: vec![Cw20Coin {
-                    address: ALICE.to_string(),
+                    address: a.to_string(),
                     amount: Uint128::new(INITIAL_BALANCE),
                 }],
                 mint: None,
@@ -239,13 +234,13 @@ pub fn test_instantiate_cw20_payroll_contract() {
         .unwrap();
 
     let instantiate = InstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         shitstrap_id: cw_vesting_code_id,
     };
     let factory_addr = app
         .instantiate_contract(
             code_id,
-            Addr::unchecked("CREATOR"),
+            c.clone(),
             &instantiate,
             &[],
             "cw-admin-factory",
@@ -256,7 +251,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
     // Mint alice native tokens
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: ALICE.to_string(),
+            to_address: a.to_string(),
             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
         }
     }))
@@ -266,7 +261,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
     let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
 
     let instantiate_payroll_msg = ShitstrapInstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         title: "title".to_string(),
         description: "desc".to_string(),
         accepted: vec![PossibleShit {
@@ -275,12 +270,11 @@ pub fn test_instantiate_cw20_payroll_contract() {
         }],
         cutoff: Uint128::new(1000000),
         shitmos: UncheckedDenom::Native("ubtsg".into()),
-        daos: todo!(),
+        daos: Vec::new(),
     };
 
-    // Attempting to call InstantiatePayrollContract directly with cw20 fails
     app.execute_contract(
-        Addr::unchecked(ALICE),
+        a.clone(),
         factory_addr.clone(),
         &ExecuteMsg::CreateNativeShitStrapContract {
             instantiate_msg: instantiate_payroll_msg.clone(),
@@ -288,24 +282,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
         },
         &coins(amount.into(), NATIVE_DENOM),
     )
-    .unwrap_err();
-
-    // let res = app
-    //     .execute_contract(
-    //         Addr::unchecked(ALICE),
-    //         cw20_addr,
-    //         &Cw20ExecuteMsg::Send {
-    //             contract: factory_addr.to_string(),
-    //             amount: instantiate_payroll_msg.total,
-    //             msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
-    //                 instantiate_msg: instantiate_payroll_msg,
-    //                 label: "Payroll".to_string(),
-    //             })
-    //             .unwrap(),
-    //         },
-    //         &coins(amount.into(), NATIVE_DENOM),
-    //     )
-    //     .unwrap();
+    .unwrap();
 
     // // Get the payroll address from the instantiate event
     // let instantiate_event = &res.events[4];
@@ -325,7 +302,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
         .query_wasm_smart(
             factory_addr,
             &QueryMsg::ListShitstrapContractsByInstantiator {
-                instantiator: ALICE.to_string(),
+                instantiator: a.to_string(),
                 start_after: None,
                 limit: None,
             },
@@ -337,6 +314,10 @@ pub fn test_instantiate_cw20_payroll_contract() {
 #[test]
 fn test_instantiate_wrong_ownership_native() {
     let mut app = App::default();
+    let a = app.api().addr_make(ALICE);
+    let b = app.api().addr_make(BOB);
+    let c: Addr = app.api().addr_make(CREATOR);
+    let e: Addr = app.api().addr_make("ekez");
     let code_id = app.store_code(factory_contract());
     let cw_vesting_code_id = app.store_code(cw_vesting_contract());
 
@@ -345,14 +326,14 @@ fn test_instantiate_wrong_ownership_native() {
 
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: "ekez".to_string(),
+            to_address: e.to_string(),
             amount: coins(amount.u128() * 2, NATIVE_DENOM),
         }
     }))
     .unwrap();
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: ALICE.to_string(),
+            to_address: a.to_string(),
             amount: coins(amount.u128() * 2, NATIVE_DENOM),
         }
     }))
@@ -361,13 +342,13 @@ fn test_instantiate_wrong_ownership_native() {
     // Alice is the owner. Contracts are only allowed if their owner
     // is alice or none and the sender is alice.
     let instantiate = InstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         shitstrap_id: cw_vesting_code_id,
     };
     let factory_addr = app
         .instantiate_contract(
             code_id,
-            Addr::unchecked("CREATOR"),
+            c.clone(),
             &instantiate,
             &[],
             "cw-admin-factory",
@@ -377,11 +358,11 @@ fn test_instantiate_wrong_ownership_native() {
 
     let err: ContractError = app
         .execute_contract(
-            Addr::unchecked("ekez"),
+            e.clone(),
             factory_addr,
             &ExecuteMsg::CreateNativeShitStrapContract {
                 instantiate_msg: ShitstrapInstantiateMsg {
-                    owner: Some(ALICE.to_string()),
+                    owner: Some(a.to_string()),
                     title: "title".to_string(),
                     description: "desc".to_string(),
                     accepted: vec![PossibleShit {
@@ -390,7 +371,7 @@ fn test_instantiate_wrong_ownership_native() {
                     }],
                     cutoff: Uint128::new(1000000),
                     shitmos: UncheckedDenom::Native("ubtsg".into()),
-                    daos: todo!(),
+                    daos: Vec::new(),
                 },
                 label: "vesting".to_string(),
             },
@@ -407,29 +388,26 @@ fn test_instantiate_wrong_ownership_native() {
 #[test]
 fn test_update_vesting_code_id() {
     let mut app = App::default();
+    let a = app.api().addr_make(ALICE);
+    let b = app.api().addr_make(BOB);
+    let c: Addr = app.api().addr_make(CREATOR);
+    let e: Addr = app.api().addr_make("ekez");
     let code_id = app.store_code(factory_contract());
     let cw_vesting_code_id = app.store_code(cw_vesting_contract());
     let cw_vesting_code_two = app.store_code(cw_vesting_contract());
 
     // Instantiate factory with only Alice allowed to instantiate payroll contracts
     let instantiate = InstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         shitstrap_id: cw_vesting_code_id,
     };
     let factory_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("CREATOR"),
-            &instantiate,
-            &[],
-            "cw-admin-factory",
-            None,
-        )
+        .instantiate_contract(code_id, c, &instantiate, &[], "cw-admin-factory", None)
         .unwrap();
 
     // Update the code ID to a new one.
     app.execute_contract(
-        Addr::unchecked(ALICE),
+        a.clone(),
         factory_addr.clone(),
         &ExecuteMsg::UpdateCodeId {
             shitstrap_code_id: cw_vesting_code_two,
@@ -440,7 +418,7 @@ fn test_update_vesting_code_id() {
 
     let err: ContractError = app
         .execute_contract(
-            Addr::unchecked(BOB),
+            b.clone(),
             factory_addr.clone(),
             &ExecuteMsg::UpdateCodeId {
                 shitstrap_code_id: cw_vesting_code_two,
@@ -454,7 +432,7 @@ fn test_update_vesting_code_id() {
 
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: ALICE.to_string(),
+            to_address: a.to_string(),
             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
         }
     }))
@@ -465,7 +443,7 @@ fn test_update_vesting_code_id() {
 
     let instantiate_payroll_msg = ExecuteMsg::CreateNativeShitStrapContract {
         instantiate_msg: ShitstrapInstantiateMsg {
-            owner: Some(ALICE.to_string()),
+            owner: Some(a.to_string()),
             title: "title".to_string(),
             description: "desc".to_string(),
             accepted: vec![PossibleShit {
@@ -474,14 +452,14 @@ fn test_update_vesting_code_id() {
             }],
             cutoff: Uint128::new(1000000),
             shitmos: UncheckedDenom::Native("ubtsg".into()),
-            daos: todo!(),
+            daos: Vec::new(),
         },
         label: "Payroll".to_string(),
     };
 
     let res = app
         .execute_contract(
-            Addr::unchecked(ALICE),
+            a.clone(),
             factory_addr,
             &instantiate_payroll_msg,
             &coins(amount.into(), NATIVE_DENOM),
@@ -506,6 +484,10 @@ fn test_update_vesting_code_id() {
 #[test]
 pub fn test_inconsistent_cw20_amount() {
     let mut app = App::default();
+    let a = app.api().addr_make(ALICE);
+    let b = app.api().addr_make(BOB);
+    let c: Addr = app.api().addr_make(CREATOR);
+    let e: Addr = app.api().addr_make("ekez");
     let code_id = app.store_code(factory_contract());
     let cw20_code_id = app.store_code(cw20_contract());
     let cw_vesting_code_id = app.store_code(cw_vesting_contract());
@@ -513,13 +495,13 @@ pub fn test_inconsistent_cw20_amount() {
     let cw20_addr = app
         .instantiate_contract(
             cw20_code_id,
-            Addr::unchecked(ALICE),
+            a.clone(),
             &cw20_base::msg::InstantiateMsg {
                 name: "cw20 token".to_string(),
                 symbol: "cwtwenty".to_string(),
                 decimals: 6,
                 initial_balances: vec![Cw20Coin {
-                    address: ALICE.to_string(),
+                    address: a.to_string(),
                     amount: Uint128::new(INITIAL_BALANCE),
                 }],
                 mint: None,
@@ -531,13 +513,13 @@ pub fn test_inconsistent_cw20_amount() {
         )
         .unwrap();
     let instantiate = InstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         shitstrap_id: cw_vesting_code_id,
     };
     let factory_addr = app
         .instantiate_contract(
             code_id,
-            Addr::unchecked("CREATOR"),
+            c.clone(),
             &instantiate,
             &[],
             "cw-admin-factory",
@@ -547,7 +529,7 @@ pub fn test_inconsistent_cw20_amount() {
     // Mint alice native tokens
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
-            to_address: ALICE.to_string(),
+            to_address: a.to_string(),
             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
         }
     }))
@@ -555,7 +537,7 @@ pub fn test_inconsistent_cw20_amount() {
     let amount = Uint128::new(1000000);
     let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
     let instantiate_payroll_msg = ShitstrapInstantiateMsg {
-        owner: Some(ALICE.to_string()),
+        owner: Some(a.to_string()),
         title: "title".to_string(),
         description: "desc".to_string(),
         accepted: vec![PossibleShit {

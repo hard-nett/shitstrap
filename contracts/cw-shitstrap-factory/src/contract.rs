@@ -265,17 +265,15 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                         .events
                         .iter()
                         .find(|e| e.ty == "instantiate")
-                        .and_then(|ev| ev.attributes.iter().find(|a| a.key == "contract_address"))
-                        .or_else(|| {
-                            res.events
-                                .iter()
-                                .find(|e| e.ty == "wasm")
-                                .and_then(|ev| ev.attributes.iter().find(|a| a.key == "contract"))
+                        .and_then(|ev| {
+                            ev.attributes.iter().find(|a| {
+                                a.key == "_contract_address" || a.key == "contract_address"
+                            })
                         })
                         .ok_or_else(|| ContractError::ReplyParseError {
                             err: "contract_address not found in reply".to_string(),
                         })?;
-                    // Validate the address
+
                     let validated_addr = deps.api.addr_validate(&contract_address.value)?;
 
                     // Query new shistrap payment contract for info
@@ -297,7 +295,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                         },
                     )?;
 
-                    // Clear tmp instatiator info
+                    // Clear tmp instantiator info
                     TMP_INSTANTIATOR_INFO.remove(deps.storage);
 
                     Ok(Response::default().add_attribute("new_shitstrap_contract", validated_addr))
