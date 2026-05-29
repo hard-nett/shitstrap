@@ -1,9 +1,9 @@
-use cosmwasm_std::{coins, to_json_binary, Addr, Empty, Uint128};
+use cosmwasm_std::{coins, Addr, Empty, Uint128, Uint256};
 use cw20::Cw20Coin;
 use cw_multi_test::{App, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_ownable::OwnershipError;
 use cw_shit_denom::UncheckedDenom;
-use cw_shitstrap::msg::{InstantiateMsg as ShitstrapInstantiateMsg, PossibleShit};
+use cw_shitstrap::contract::msg::{InstantiateMsg as ShitstrapInstantiateMsg, PossibleShit};
 
 use crate::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
@@ -107,17 +107,17 @@ pub fn test_instantiate_native_payroll_contract() {
         .unwrap();
 
     // BOB can't instantiate as owner is configured
-    let err: ContractError = app
+    let err = app
         .execute_contract(
             b.clone(),
             factory_addr.clone(),
             &instantiate_payroll_msg,
             &coins(amount.into(), NATIVE_DENOM),
         )
-        .unwrap_err()
-        .downcast()
-        .unwrap();
-    assert_eq!(err, ContractError::Unauthorized {});
+        .unwrap_err();
+    assert!(err
+        .to_string()
+        .contains(&ContractError::Unauthorized {}.to_string()));
 
     // Get the payroll address from the instantiate event
     let instantiate_event = &res.events[2];
@@ -222,7 +222,7 @@ pub fn test_instantiate_cw20_payroll_contract() {
                 decimals: 6,
                 initial_balances: vec![Cw20Coin {
                     address: a.to_string(),
-                    amount: Uint128::new(INITIAL_BALANCE),
+                    amount: Uint256::new(INITIAL_BALANCE),
                 }],
                 mint: None,
                 marketing: None,
@@ -356,7 +356,7 @@ fn test_instantiate_wrong_ownership_native() {
         )
         .unwrap();
 
-    let err: ContractError = app
+    let err = app
         .execute_contract(
             e.clone(),
             factory_addr,
@@ -377,12 +377,12 @@ fn test_instantiate_wrong_ownership_native() {
             },
             &coins(amount.u128(), NATIVE_DENOM),
         )
-        .unwrap_err()
-        .downcast()
-        .unwrap();
+        .unwrap_err();
 
     // Can't instantiate if you are not the owner.
-    assert_eq!(err, ContractError::Unauthorized {});
+    assert!(err
+        .to_string()
+        .contains(&ContractError::Unauthorized {}.to_string()));
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn test_update_vesting_code_id() {
     )
     .unwrap();
 
-    let err: ContractError = app
+    let err = app
         .execute_contract(
             b.clone(),
             factory_addr.clone(),
@@ -425,10 +425,10 @@ fn test_update_vesting_code_id() {
             },
             &[],
         )
-        .unwrap_err()
-        .downcast()
-        .unwrap();
-    assert_eq!(err, ContractError::Ownable(OwnershipError::NotOwner));
+        .unwrap_err();
+    assert!(err
+        .to_string()
+        .contains(&ContractError::Ownable(OwnershipError::NotOwner).to_string()));
 
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {
@@ -502,7 +502,7 @@ pub fn test_inconsistent_cw20_amount() {
                 decimals: 6,
                 initial_balances: vec![Cw20Coin {
                     address: a.to_string(),
-                    amount: Uint128::new(INITIAL_BALANCE),
+                    amount: Uint256::new(INITIAL_BALANCE),
                 }],
                 mint: None,
                 marketing: None,

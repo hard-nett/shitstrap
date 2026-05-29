@@ -8,8 +8,8 @@ use cosmwasm_std::{Addr, Coin};
 
 use cw2::set_contract_version;
 use cw_shitstrap::{
-    msg::{InstantiateMsg as ShitstrapInstantiateMsg, QueryMsg as ShitstrapQueryMsg},
-    state::Config as ShitstrapConfig,
+    contract::msg::{InstantiateMsg as ShitstrapInstantiateMsg, QueryMsg as ShitstrapQueryMsg},
+    contract::state::Config as ShitstrapConfig,
 };
 use cw_storage_plus::Bound;
 

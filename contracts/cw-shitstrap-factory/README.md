@@ -1,4 +1,4 @@
-# cw-payroll-factory
+# cw-shitstrap-factory
 
 [![cw-payroll-factory on crates.io](https://img.shields.io/crates/v/cw-payroll-factory.svg?logo=rust)](https://crates.io/crates/cw-payroll-factory)
 [![docs.rs](https://img.shields.io/docsrs/cw-payroll-factory?logo=docsdotrs)](https://docs.rs/cw-payroll-factory/latest/cw_payroll_factory/)

@@ -3,7 +3,7 @@ use cw_ownable::OwnershipError;
 use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -31,4 +31,12 @@ pub enum ContractError {
 
     #[error("vesting contract vests ({expected}) tokens, funded with ({sent})")]
     WrongFundAmount { sent: Uint128, expected: Uint128 },
+}
+
+impl PartialEq for ContractError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }

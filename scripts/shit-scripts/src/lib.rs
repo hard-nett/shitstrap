@@ -1,7 +1,8 @@
+use cosmwasm_std::Decimal;
 use cw_orch::{anyhow, prelude::*};
 use cw_shitstrap::{
-    interface::CwShitstrap,
-    msg::{AsyncQueryMsgFns as _, ExecuteMsgFns as _, QueryMsgFns as _},
+    contract::interface::CwShitstrap,
+    contract::msg::{AsyncQueryMsgFns as _, ExecuteMsgFns as _, QueryMsgFns as _},
 };
 use cw_shitstrap_factory::{
     interface::CwShitstrapFactory,
@@ -9,9 +10,10 @@ use cw_shitstrap_factory::{
 };
 
 pub use cw_shit_denom::UncheckedDenom;
-pub use cw_shitstrap::msg::{InstantiateMsg as ShitInitMsg, PossibleShit};
+pub use cw_shitstrap::contract::msg::{InstantiateMsg as ShitInitMsg, PossibleShit};
 pub use cw_shitstrap_factory::msg::InstantiateMsg as ShitFactoryInitMsg;
-
+pub use cw_shitstrap_ibc_callbacks::contract::interface::CwShitstrapCallback;
+use dotenv;
 #[derive(Clone, Debug, Default)]
 pub struct CwShitstrapSuiteDeployData {
     pub shit: Vec<ShitInitMsg>,
@@ -22,6 +24,7 @@ pub struct CwShitstrapSuite<Chain> {
     pub chain: Chain,
     pub shitstrap: CwShitstrap<Chain>,
     pub factory: CwShitstrapFactory<Chain>,
+    pub ibc: CwShitstrapCallback<Chain>,
 }
 
 impl<Chain: CwEnv> CwShitstrapSuite<Chain> {
@@ -30,11 +33,13 @@ impl<Chain: CwEnv> CwShitstrapSuite<Chain> {
             chain: chain.clone(),
             shitstrap: CwShitstrap::new(chain.clone()),
             factory: CwShitstrapFactory::new(chain.clone()),
+            ibc: CwShitstrapCallback::new(chain.clone()),
         }
     }
     pub fn upload(&self) -> Result<(), CwOrchError> {
         self.shitstrap.upload()?;
         self.factory.upload()?;
+        self.ibc.upload()?;
         Ok(())
     }
 }
@@ -85,5 +90,111 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwShitstrapSuite<Chain> 
             }
             None => Err(CwOrchError::NotImplemented {}),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// shitstrap deploy data builders
+// ---------------------------------------------------------------------------
+
+/// Single shitstrap: 20 THIOL in -> 1 TERP out.
+pub fn shit_deploy_data_single(admin: Addr) -> Option<CwShitstrapSuiteDeployData> {
+    let mut dd = CwShitstrapSuiteDeployData::default();
+    dd.admin = Some(admin.clone());
+    dd.shit = vec![ShitInitMsg {
+        daos: Vec::new(),
+        owner: Some(admin.to_string()),
+        accepted: vec![PossibleShit::native_denom(
+            "uthiol",
+            50_000_000_000_000_000u128,
+        )],
+        cutoff: 500_000_000_000u128.into(),
+        shitmos: UncheckedDenom::Native("uterp".into()),
+        title: "terp".into(),
+        description: "terp".into(),
+    }];
+    Some(dd)
+}
+
+/// Multiple shistraps with spot-price-based exchange rates.
+pub fn shit_deploy_data_full(admin: Addr) -> Option<CwShitstrapSuiteDeployData> {
+    let mut dd = CwShitstrapSuiteDeployData::default();
+    let cut = 710_000_000_000u128;
+
+    let mut shit = Vec::new();
+
+    // atom @ $1.81
+    shit.push(build_shit_init(
+        &admin,
+        &tf_denom(&admin, "atom"),
+        calc_rates(Decimal::from_ratio(181u128, 100u128)),
+        cut,
+        "atom",
+    ));
+
+    // btc @ $66,350
+    shit.push(build_shit_init(
+        &admin,
+        &tf_denom(&admin, "btc"),
+        calc_rates(Decimal::from_ratio(66350u128, 1u128)),
+        cut,
+        "btc",
+    ));
+
+    // akt @ $0.29
+    shit.push(build_shit_init(
+        &admin,
+        &tf_denom(&admin, "akt"),
+        calc_rates(Decimal::from_ratio(29u128, 100u128)),
+        cut,
+        "akt",
+    ));
+
+    // um @ $0.007
+    shit.push(build_shit_init(
+        &admin,
+        &tf_denom(&admin, "um"),
+        calc_rates(Decimal::from_ratio(7u128, 1000u128)),
+        cut,
+        "um",
+    ));
+
+    // eth @ $1,956.12
+    shit.push(build_shit_init(
+        &admin,
+        &tf_denom(&admin, "eth"),
+        calc_rates(Decimal::from_ratio(195612u128, 100u128)),
+        cut,
+        "eth",
+    ));
+
+    dd.admin = Some(admin);
+    dd.shit = shit;
+    Some(dd)
+}
+
+pub fn calc_rates(price: Decimal) -> u128 {
+    price.atomics().u128() * 100
+}
+
+pub fn tf_denom(creator: &Addr, subdenom: &str) -> String {
+    format!("factory/{}/{}", creator, subdenom)
+}
+
+pub fn build_shit_init(
+    admin: &Addr,
+    native_denom: &str,
+    shit_rate: u128,
+    cutoff: u128,
+    title: &str,
+) -> ShitInitMsg {
+    ShitInitMsg {
+        daos: Vec::new(),
+        owner: Some(admin.to_string()),
+        accepted: vec![PossibleShit::native_denom(native_denom, shit_rate)],
+        cutoff: cutoff.into(),
+        shitmos: UncheckedDenom::Native("uthiol".into()),
+        title: title.into(),
+        description: title.into(),
     }
 }

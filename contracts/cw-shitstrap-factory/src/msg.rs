@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cw_ownable::cw_ownable_execute;
 
-use cw_shitstrap::msg::InstantiateMsg as ShitstrapInstantiateMsg;
+use cw_shitstrap::contract::msg::InstantiateMsg as ShitstrapInstantiateMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {

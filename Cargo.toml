@@ -3,7 +3,10 @@ name = "cw-shitstrap"
 exclude = [ ]
 members =  [
   "contracts/cw-shitstrap",
-  "contracts/cw-shitstrap-factory", "packages/cw-shit-denom", "scripts/shit-scripts",
+  "contracts/cw-shitstrap-factory",
+  "contracts/cw-shitstrap-ibc-callbacks", 
+  "packages/cw-shit-denom", 
+  "scripts/shit-scripts",
 ]
 resolver = "2"
 
@@ -34,20 +37,23 @@ overflow-checks = true
 
 
 [workspace.dependencies]
-cosmwasm-schema = "2.3.2"
-cosmwasm-std = { version = "2.3.2" }
-cw-storage-plus = "2.0.0"
-cw2 = "2.0.0"
-cw20 = "2.0.0"
-cw20-base = "2.0.0"
+cosmwasm-schema = { path = "../cosmwasm/packages/schema" }
+cosmwasm-std  = { path = "../cosmwasm/packages/std" }
+cw-storage-plus   = { path = "../cw-storage-plus" }
+cw2 = { path = "../cw-minus/packages/cw2" }
+cw20 = { path = "../cw-plus/packages/cw20" }
+cw20-base = { path = "../cw-plus/contracts/cw20-base" }
 dao-interface = {version =  "2.6.0"}
-cw-orch = { git = "https://github.com/permissionlessweb/cw-orchestrator", branch = "feat/wasm-path" }
+cw-orch = { path = "../cw-orchestrator/cw-orch" }
 cw-shitstrap = { path = "contracts/cw-shitstrap"}
 cw-shitstrap-factory = { path = "contracts/cw-shitstrap-factory"}
+cw-shitstrap-ibc-callbacks = { path = "contracts/cw-shitstrap-ibc-callbacks"}
 cw-shit-denom = { path = "packages/cw-shit-denom"}
+sha2 = "0.10"
 schemars = "0.8.16"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.58" }
-cw-multi-test = "2.5.1"
-cw-utils = "2.0.0"
-cw-ownable = "2.1.0"
+cw-multi-test  = { path = "../cw-multi-test" }
+cw-utils = { path = "../cw-minus/packages/cw-utils", version = "3.0.0" }
+cw-ownable = { path = "../cw-plus-plus/packages/ownable" }
+
