@@ -1,5 +1,5 @@
 # Build results
-/target
+target
 /schema
 /artifacts
 node_modules

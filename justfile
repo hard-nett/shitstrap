@@ -3,19 +3,7 @@
 docker_image := env_var_or_default('DOCKER_IMAGE', 'shitstrap-optimizer:0.17.0')
 arch := `if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then echo "linux/arm64"; else echo "linux/amd64"; fi`
 
-wasm:
-    #!/bin/bash
-    if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
-            --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-            --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-            --platform linux/arm64 \
-            cosmwasm/optimizer-arm64:0.17.0; \
-    elif [[ $(uname -m) == 'x86_64' ]]; then docker run --rm -v "$(pwd)":/code \
-            --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-            --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-            --platform linux/amd64 \
-            cosmwasm/optimizer:0.17.0; fi
-
+ 
 schema-codegen:
         @sh scripts/sh/schema-codegen.sh
 
@@ -26,3 +14,28 @@ schema-codegen:
 #             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
 #             --platform {{arch}} \
 #             {{docker_image}}
+
+
+optimizer-build:
+        docker build -t {{docker_image}} optimizer/
+
+workspace-optimize: optimizer-build
+        docker run --rm \
+                -v "{{justfile_directory()}}/..":/workspace \
+                --mount type=volume,source=dao_contracts_cache,target=/target \
+                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+                --platform {{arch}} \
+                {{docker_image}}
+
+# Quick rebuild without rebuilding the Docker image
+workspace-optimize-quick:
+        docker run --rm \
+                -v "{{justfile_directory()}}/..":/workspace \
+                --mount type=volume,source=dao_contracts_cache,target=/target \
+                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+                --platform {{arch}} \
+                {{docker_image}}
+
+# Clear build caches (useful after toolchain changes or if builds fail)
+optimizer-clean:
+        docker volume rm dao_contracts_cache registry_cache 2>/dev/null || true%          

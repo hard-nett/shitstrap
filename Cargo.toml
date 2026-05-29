@@ -1,6 +1,6 @@
 [workspace]
 name = "cw-shitstrap"
-exclude = [ ]
+exclude = [  "scripts/shit-scripts" ]
 members =  [
   "contracts/cw-shitstrap",
   "contracts/cw-shitstrap-factory",
@@ -13,7 +13,7 @@ resolver = "2"
 [workspace.package]
 license = "BSD-3-Clause"
 repository = "https://github.com/shitmos/shitstrap"
-edition = "2021"
+edition = "2024"
 resolver = "2"
 version = "0.1.0"
 

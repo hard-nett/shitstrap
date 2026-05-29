@@ -95,7 +95,60 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     }
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn ibc_destination_callback(
+    deps: DepsMut,
+    env: Env,
+    msg: IbcDestinationCallbackMsg,
+) -> Result<IbcBasicResponse, ContractError> {
+    // 1. Validate ack is success
+    let ack: StdAck = cosmwasm_std::from_json(&msg.ack.data)?;
+    if !ack.is_success() {
+        return Err(ContractError::AckNotSuccess {});
+    }
 
+    // 2. Extract transfer info
+    let transfer = msg.transfer.ok_or(ContractError::NoTransferData {})?;
+
+    // 3. Verify the receiver matches this contract address
+    if transfer.receiver != env.contract.address {
+        return Err(ContractError::ReceiverMismatch {
+            expected: env.contract.address.to_string(),
+            got: transfer.receiver.to_string(),
+        });
+    }
+
+    // 4. Get the shitstrap address
+    let shitstrap = SHITSTRAP_ADDR.load(deps.storage)?;
+
+    // Build the ShitStrapAndMint message for each coin in the transfer funds
+    let mut messages: Vec<CosmosMsg> = Vec::new();
+
+    for coin in &transfer.funds {
+        let shit = AssetUnchecked {
+            denom: UncheckedDenom::Native(coin.denom.clone()),
+            amount: coin.amount,
+        };
+
+        let exec_msg = ShitStrapExecuteMsg::ShitStrapAndMint { shit, dao: None };
+
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: shitstrap.to_string(),
+            msg: to_json_binary(&exec_msg)?,
+            funds: vec![Coin {
+                denom: coin.denom.clone(),
+                amount: coin.amount,
+            }],
+        }));
+    }
+
+    // 5. Return response with the messages
+    Ok(IbcBasicResponse::new()
+        .add_messages(messages)
+        .add_attribute("action", "ibc_destination_callback")
+        .add_attribute("receiver", transfer.receiver.to_string())
+        .add_attribute("num_transfers", transfer.funds.len().to_string()))
+}
 
 pub mod error {
     use cosmwasm_std::StdError;

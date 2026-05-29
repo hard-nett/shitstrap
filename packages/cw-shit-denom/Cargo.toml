@@ -14,4 +14,4 @@ cw20 = { workspace = true }
 
 [dev-dependencies]
 cw20-base = { workspace = true }
-cw-multi-test = { workspace = true, features = ["cosmwasm_2_2"] }
+cw-multi-test = { workspace = true, features = ["cosmwasm_3_0"] }

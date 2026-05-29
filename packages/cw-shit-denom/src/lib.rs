@@ -7,8 +7,8 @@ use std::fmt::{self};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Coin, CosmosMsg, CustomQuery, Deps, QuerierWrapper, StdError,
-    StdResult, Uint128, Uint256, WasmMsg,
+    Addr, BankMsg, Coin, CosmosMsg, CustomQuery, Deps, QuerierWrapper, StdError, StdResult,
+    Uint256, WasmMsg, to_json_binary,
 };
 
 use thiserror::Error;
@@ -210,9 +210,9 @@ impl fmt::Display for CheckedDenom {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{
-        testing::{mock_dependencies, MockApi, MockQuerier},
-        to_json_binary, Addr, ContractResult, QuerierResult, StdError, SystemError, Uint128,
-        WasmQuery,
+        Addr, ContractResult, QuerierResult, StdError, SystemError, Uint128, WasmQuery,
+        testing::{MockApi, MockQuerier, mock_dependencies},
+        to_json_binary,
     };
 
     use super::*;
@@ -273,15 +273,17 @@ mod tests {
 
         let unchecked = UncheckedDenom::Cw20(MockApi::default().addr_make("cw20").to_string());
         let err = unchecked.into_checked(deps.as_ref()).unwrap_err();
-        assert!(err.to_string().contains(
-            &DenomError::InvalidCw20 {
-                err: StdError::msg(format!(
-                    "Querier system error: No such contract: {}",
-                    MockApi::default().addr_make("cw20")
-                ))
-            }
-            .to_string()
-        ))
+        assert!(
+            err.to_string().contains(
+                &DenomError::InvalidCw20 {
+                    err: StdError::msg(format!(
+                        "Querier system error: No such contract: {}",
+                        MockApi::default().addr_make("cw20")
+                    ))
+                }
+                .to_string()
+            )
+        )
     }
 
     #[test]
