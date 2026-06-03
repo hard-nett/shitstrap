@@ -1605,7 +1605,7 @@ dependencies = [
  "metrics",
  "once_cell",
  "parking_lot",
- "pbjson",
+ "pbjson 0.7.0",
  "pin-project",
  "prost",
  "regex",
@@ -2504,9 +2504,11 @@ dependencies = [
  "cw20",
  "cw20-base",
  "dao-interface",
- "ibc-app-transfer-types",
+ "hex",
  "schemars 0.8.22",
  "serde",
+ "serde_json",
+ "terp-rs",
  "thiserror 1.0.69",
 ]
 
@@ -3843,7 +3845,7 @@ checksum = "0ce92ff622d6dadf7349484f42c93271a0d49b7cc4d466a936405bacbe10aa78"
 dependencies = [
  "cfg-if",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8292,6 +8294,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "pbjson"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8edd1efdd8ab23ba9cb9ace3d9987a72663d5d7c9f74fa00b51d6213645cf6c"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+]
+
+[[package]]
+name = "pbjson-build"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ed4d5c6ae95e08ac768883c8401cf0e8deb4e6e1d6a4e1fd3d2ec4f0ec63200"
+dependencies = [
+ "heck 0.5.0",
+ "itertools 0.14.0",
+ "prost",
+ "prost-types",
+]
+
+[[package]]
+name = "pbjson-types"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a14e2757d877c0f607a82ce1b8560e224370f159d66c5d52eb55ea187ef0350e"
+dependencies = [
+ "bytes",
+ "chrono",
+ "pbjson 0.9.0",
+ "pbjson-build",
+ "prost",
+ "prost-build",
+ "serde",
+]
+
+[[package]]
 name = "pbkdf2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11168,6 +11207,7 @@ dependencies = [
  "ict-rs",
  "serde_json",
  "sha2 0.10.9",
+ "terp-rs",
  "tokio",
  "tracing",
 ]
@@ -11785,6 +11825,22 @@ checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "terp-rs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ibc-app-nft-transfer-types",
+ "ibc-app-transfer-types",
+ "ibc-client-wasm-types",
+ "ibc-proto",
+ "ibc-types",
+ "pbjson-types",
+ "prost",
+ "serde",
 ]
 
 [[package]]

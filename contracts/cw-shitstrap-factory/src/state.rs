@@ -11,7 +11,7 @@ pub const SHITSTRAP_CODE_ID: Item<u64> = Item::new("pci");
 pub struct ShitstrapContract {
     pub contract: String,
     pub instantiator: String,
-    pub slop: Vec<PossibleShit>,
+    pub accepted: Vec<PossibleShit>,
     pub shit: String,
 }
 

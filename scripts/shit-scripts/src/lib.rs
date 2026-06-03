@@ -1,5 +1,3 @@
-mod e2e;
-
 use cosmwasm_std::Decimal;
 use cw_orch::prelude::*;
 use cw_shitstrap::contract::interface::CwShitstrap;

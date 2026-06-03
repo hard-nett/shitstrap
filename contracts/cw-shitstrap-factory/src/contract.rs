@@ -280,6 +280,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                     let shit_strap: ShitstrapConfig = deps
                         .querier
                         .query_wasm_smart(validated_addr.clone(), &ShitstrapQueryMsg::Config {})?;
+                    let accepted: Vec<cw_shit_denom::PossibleShit> =
+                        deps.querier.query_wasm_smart(
+                            validated_addr.clone(),
+                            &ShitstrapQueryMsg::ShitRates {},
+                        )?;
 
                     let instantiator = TMP_INSTANTIATOR_INFO.load(deps.storage)?;
 
@@ -289,7 +294,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                         validated_addr.as_ref(),
                         &ShitstrapContract {
                             instantiator: instantiator.to_string(),
-                            slop: shit_strap.accepted,
+                            accepted,
                             shit: shit_strap.shitmos_addr.to_string(),
                             contract: validated_addr.to_string(),
                         },

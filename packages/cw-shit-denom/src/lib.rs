@@ -23,7 +23,7 @@ pub struct AssetUnchecked {
 }
 
 impl AssetUnchecked {
-    pub fn from_native(denom: &str, amount: u128) -> Self {
+    pub fn from_native<T: Into<Uint256>>(denom: &str, amount: T) -> Self {
         AssetUnchecked {
             denom: UncheckedDenom::Native(denom.into()),
             amount: amount.into(),
@@ -102,6 +102,15 @@ pub enum UncheckedDenom {
     Native(String),
     /// A cw20 asset.
     Cw20(String),
+}
+
+impl ToString for UncheckedDenom {
+    fn to_string(&self) -> String {
+        match self {
+            UncheckedDenom::Native(c) => c.into(),
+            UncheckedDenom::Cw20(c) => c.into(),
+        }
+    }
 }
 
 impl UncheckedDenom {
