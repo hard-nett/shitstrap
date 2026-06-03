@@ -1,14 +1,14 @@
-use cosmwasm_std::{coins, Addr, Empty, Uint128, Uint256};
-use cw20::Cw20Coin;
+use cosmwasm_std::{Addr, Empty, Uint128, Uint256, coins};
 use cw_multi_test::{App, BankSudo, Contract, ContractWrapper, Executor, SudoMsg};
 use cw_ownable::OwnershipError;
-use cw_shit_denom::UncheckedDenom;
-use cw_shitstrap::contract::msg::{InstantiateMsg as ShitstrapInstantiateMsg, PossibleShit};
+use cw_shit_denom::{PossibleShit, UncheckedDenom};
+use cw_shitstrap::contract::msg::InstantiateMsg as ShitstrapInstantiateMsg;
+use cw20::Cw20Coin;
 
 use crate::{
+    ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::ShitstrapContract,
-    ContractError,
 };
 
 const ALICE: &str = "alice";
@@ -115,9 +115,10 @@ pub fn test_instantiate_native_payroll_contract() {
             &coins(amount.into(), NATIVE_DENOM),
         )
         .unwrap_err();
-    assert!(err
-        .to_string()
-        .contains(&ContractError::Unauthorized {}.to_string()));
+    assert!(
+        err.to_string()
+            .contains(&ContractError::Unauthorized {}.to_string())
+    );
 
     // Get the payroll address from the instantiate event
     let instantiate_event = &res.events[2];
@@ -380,9 +381,10 @@ fn test_instantiate_wrong_ownership_native() {
         .unwrap_err();
 
     // Can't instantiate if you are not the owner.
-    assert!(err
-        .to_string()
-        .contains(&ContractError::Unauthorized {}.to_string()));
+    assert!(
+        err.to_string()
+            .contains(&ContractError::Unauthorized {}.to_string())
+    );
 }
 
 #[test]
@@ -426,9 +428,10 @@ fn test_update_vesting_code_id() {
             &[],
         )
         .unwrap_err();
-    assert!(err
-        .to_string()
-        .contains(&ContractError::Ownable(OwnershipError::NotOwner).to_string()));
+    assert!(
+        err.to_string()
+            .contains(&ContractError::Ownable(OwnershipError::NotOwner).to_string())
+    );
 
     app.sudo(SudoMsg::Bank({
         BankSudo::Mint {

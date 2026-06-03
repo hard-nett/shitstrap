@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
-use cw_shitstrap::contract::msg::PossibleShit;
+use cw_shit_denom::PossibleShit;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 
 /// Temporarily holds the address of the instantiator for use in submessages

@@ -1,22 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply, Response, StdResult,
-    SubMsg, WasmMsg,
-};
 use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{
+    Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply, Response, StdResult, SubMsg, WasmMsg,
+    to_json_binary,
+};
 
-use cw2::set_contract_version;
 use cw_shitstrap::{
     contract::msg::{InstantiateMsg as ShitstrapInstantiateMsg, QueryMsg as ShitstrapQueryMsg},
     contract::state::Config as ShitstrapConfig,
 };
 use cw_storage_plus::Bound;
+use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    shitstrap_contracts, ShitstrapContract, SHITSTRAP_CODE_ID, TMP_INSTANTIATOR_INFO,
+    SHITSTRAP_CODE_ID, ShitstrapContract, TMP_INSTANTIATOR_INFO, shitstrap_contracts,
 };
 
 pub(crate) const CW_SHITSTRAP_FACTORY: &str = "cw-shitstrap-factory";

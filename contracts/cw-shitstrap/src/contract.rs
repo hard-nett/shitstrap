@@ -1,14 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, Response, StdResult, SubMsg, SubMsgResult, Uint128, Uint256, WasmMsg,
+    ensure_eq, from_json, to_json_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, IbcBasicResponse, IbcDestinationCallbackMsg, MessageInfo, Response, StdAck,
+    StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
+
 use cosmwasm_std::{DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError};
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_shit_denom::DenomError;
-use cw_shit_denom::{CheckedDenom, UncheckedDenom};
+use cw_shit_denom::{AssetUnchecked, CheckedDenom, UncheckedDenom};
+use cw_shit_denom::{DenomError, PossibleShit};
+use cw_svg::SvgMintCallbackAction;
+use ibc_app_transfer_types::proto::transfer::v2::FungibleTokenPacketData;
 use msg::*;
 use state::*;
 use thiserror::Error;
@@ -16,9 +21,10 @@ use thiserror::Error;
 pub mod msg {
     use super::*;
     use cosmwasm_schema::{cw_serde, QueryResponses};
-    use cosmwasm_std::{Addr, Uint128, Uint256};
-    use cw20::Cw20ReceiveMsg;
-    use cw_shit_denom::UncheckedDenom;
+    use cw_shit_denom::AssetUnchecked;
+    #[cfg(not(target_arch = "wasm32"))]
+    use cw_shit_denom::PossibleShit;
+    use cw_svg::SvgMintCallbackAction;
     #[cw_serde]
     pub struct DaoParams {
         /// Dao addr
@@ -27,6 +33,29 @@ pub mod msg {
         pub floor: Uint128,
         /// Set to 0 to disable
         pub ceiling: Uint128,
+    }
+
+    // implements terp-speced adr-08 compat memo format:
+    // <thing>MemoAdr08
+    // - a: Vec<<thing>CallbackAction>
+    #[cosmwasm_schema::cw_serde]
+    pub struct ShitstrapMemoAdr08 {
+        // ADR-8 tag
+        pub ibc_callback: String,
+        pub a: Vec<CosmosMsg>,
+    }
+    #[cosmwasm_schema::cw_serde]
+    pub struct ShitstrapCallbackAction {
+        pub shitstrap: ShitstrapMsg,
+        pub nfts: Vec<SvgMintCallbackAction>,
+    }
+
+    #[cosmwasm_schema::cw_serde]
+    pub struct ShitstrapMsg {
+        pub shitter: String,
+        pub shit: AssetUnchecked,
+        pub recipient: Option<String>,
+        pub dao: Option<String>,
     }
 
     #[cw_serde]
@@ -52,8 +81,9 @@ pub mod msg {
     pub enum ExecuteMsg {
         /// Entry point to participate in shit-strap
         ShitStrap {
+            recp: Option<String>,
             shit: AssetUnchecked,
-            dao: Option<Addr>,
+            dao: Option<String>,
         },
         /// Admin function to set full-of-shit status to on. *(used for emergencies or early cutoff)*
         Flush {},
@@ -64,8 +94,8 @@ pub mod msg {
         /// Atomically deposit tokens and trigger mint from SVG collection if cutoff reached.
         /// Sends funds (native) along with the execute message.
         ShitStrapAndMint {
-            shit: AssetUnchecked,
-            dao: Option<Addr>,
+            shitstrap: ShitstrapMsg,
+            mint: SvgMintCallbackAction,
         },
         /// Owner-only: set the SVG collection contract address for minting
         UpdateSvgCollection { address: String },
@@ -76,13 +106,19 @@ pub mod msg {
         /// Manually register an address for a shit strap when sending cw20 tokens.
         /// This can be a different address than the sender, if desired.
         ShitStrap {
-            shit_strapper: String,
-            dao: Option<Addr>,
+            // will recieve shit unless recp is some.
+            shitter: String,
+            // overrides shit going to shitter.
+            recp: Option<String>,
+            // // shit sender is swapping for contracts shit
+            dao: Option<String>,
         },
-        /// Atomically deposit cw20 tokens and trigger mint from SVG collection if cutoff reached.
+        // Atomically deposit cw20 tokens and trigger mint from SVG collection if cutoff reached.
         ShitStrapAndMint {
-            shit_strapper: String,
-            dao: Option<Addr>,
+            shitter: String,
+            recp: Option<String>,
+            dao: Option<String>,
+            mint: SvgMintCallbackAction,
         },
     }
 
@@ -91,7 +127,7 @@ pub mod msg {
     #[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
     pub enum QueryMsg {
         /// Returns max possible deposit value for a shit-strap instance
-        #[returns(Config)]
+        #[returns(super::state::Config)]
         Config {},
         #[returns(Uint128)]
         /// Current amount of shit value that has been deposited in the shit-strap.
@@ -114,62 +150,15 @@ pub mod msg {
         // /// Query maximum token to be able to send before shitstrap will become full of shit.
         // LeftToShit { shit: String },
     }
-
-    #[cw_serde]
-    pub struct AssetUnchecked {
-        pub denom: UncheckedDenom,
-        pub amount: Uint256,
-    }
-
-    impl AssetUnchecked {
-        pub fn from_native(denom: &str, amount: u128) -> Self {
-            AssetUnchecked {
-                denom: UncheckedDenom::Native(denom.into()),
-                amount: amount.into(),
-            }
-        }
-    }
-
-    #[cw_serde]
-    pub struct PossibleShit {
-        /// Generic type for contract address or token included in shitstrap.
-        pub token: UncheckedDenom,
-        /// Atomic unit value for conversion ratio with shitmos.\
-        /// * 1000000000000000000 == 1:1 coversion ratio\
-        /// *  500000000000000000 ==  0.5
-        ///
-        pub shit_rate: Uint128,
-    }
-
-    impl PossibleShit {
-        pub fn native_denom(native_denom: &str, shit_rate: u128) -> Self {
-            PossibleShit {
-                token: UncheckedDenom::Native(native_denom.into()),
-                shit_rate: Uint128::new(shit_rate),
-            }
-        }
-        pub fn native_cw20(native_coin: &str, shit_rate: u128) -> Self {
-            PossibleShit {
-                token: UncheckedDenom::Cw20(native_coin.into()),
-                shit_rate: Uint128::new(shit_rate),
-            }
-        }
-    }
 }
 
-// version info for migration info
-pub const CW_SHITSTRAP: &str = "cw-shitstrap";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const MINT_REPLY_ID: u64 = 1;
+use cosmwasm_schema::cw_serde;
 
 pub mod state {
     use super::*;
-    use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{Addr, CosmosMsg, Uint128, Uint256};
-    use cw_shit_denom::CheckedDenom;
+    use cw_shit_denom::{CheckedDenom, PossibleShit};
     use cw_storage_plus::{Item, Map};
-
-    use super::msg::PossibleShit;
 
     pub const ATOMINC_DECIMALS: u32 = 6u32;
     pub const MAX_DEC_PRECISION: u32 = 18u32;
@@ -190,7 +179,7 @@ pub mod state {
     #[cw_serde]
     pub struct MintTempStorage {
         /// The shitter who triggered the mint
-        pub shit_strapper: Addr,
+        pub shitter: Addr,
         /// The amount of tokens deposited
         pub shit_amount: Uint256,
         /// The shit value calculated from the deposit
@@ -205,20 +194,22 @@ pub mod state {
         pub previous_shit_value: Uint256,
     }
 
+    // version info for migration info
+    pub const CW_SHITSTRAP: &str = "cw-shitstrap";
+    pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+    pub const MINT_REPLY_ID: u64 = 1;
     pub const CONFIG: Item<Config> = Item::new("s");
     pub const CURRENT_SHITSTRAP_VALUE: Item<Uint256> = Item::new("h");
     pub const REFUND_SHIT: Map<Addr, CosmosMsg> = Map::new("i");
     pub const SHITSTRAP_STATE: Map<String, (Uint256, bool)> = Map::new("t");
-    /// amount of token recieved during shitstrap, map key of the token denom
-
     /// map of eligible daos an the floor and celing limits to vp for participation.
     /// 0,0 == no min & no max
-    /// 0,x == no min, vp ceiling at x
+    /// 0,y == no min, vp ceiling at y
     /// x,0 == floor at x, no ceiling
+    /// x,y == floor at x, ceiling at y
     pub const DAOS: Map<Addr, (Uint256, Uint256)> = Map::new("ty");
-
     /// SVG collection address for minting NFTs when full_of_shit
-    pub const SVG_COLLECTION_ADDRESS: Item<Addr> = Item::new("svg_collection");
+    pub const SVG_MINTER: Item<Addr> = Item::new("svg_minter");
     /// Optional mint price override in the native gas denom (0 = use collection's price tier)
     pub const MINT_PRICE: Item<Uint128> = Item::new("mint_price");
     /// Temporary storage for reply handler during ShitStrapAndMint
@@ -303,14 +294,18 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let sender = info.sender.clone();
     match msg {
-        ExecuteMsg::ShitStrap { shit, dao } => {
-            execute_shit_strap(deps, info, shit, sender, dao, None)
+        ExecuteMsg::ShitStrap { recp, shit, dao } => {
+            execute_shit_strap_internal(deps, info, shit, sender, recp, dao, None)
         }
         ExecuteMsg::Flush {} => execute_flush(deps, sender),
         ExecuteMsg::Receive(cw20_msg) => receive_cw20_message(deps, info, cw20_msg),
         ExecuteMsg::RefundShitter {} => refund_shitter(deps, info),
-        ExecuteMsg::ShitStrapAndMint { shit, dao } => {
-            execute_shit_strap_and_mint(deps, info, shit, sender, dao)
+        ExecuteMsg::ShitStrapAndMint {
+            shitstrap: ss,
+            mint: m,
+        } => {
+            let shitter = deps.api.addr_validate(&ss.shitter)?;
+            execute_shit_strap_internal(deps, info, ss.shit, shitter, ss.recipient, ss.dao, Some(m))
         }
         ExecuteMsg::UpdateSvgCollection { address } => {
             execute_update_svg_collection(deps, info, address)
@@ -367,43 +362,54 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// Internal mint message shape matching cw721-svg's ExecuteMsg::Mint
-#[cosmwasm_schema::cw_serde]
-struct SvgMintMsg {
-    amount: u64,
-    proof_hashes: Option<Vec<String>>,
-    allocation: u32,
-}
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn ibc_destination_callback(
+    deps: DepsMut,
+    env: Env,
+    msg: IbcDestinationCallbackMsg,
+) -> Result<IbcBasicResponse, ContractError> {
+    ensure_eq!(
+        msg.packet.dest.port_id,
+        "transfer",
+        StdError::msg("only want to handle transfer packets")
+    );
 
-/// Optional mint configuration injected by ShitStrapAndMint path
-struct MintConfig {
-    price: Uint128,
-}
+    if !cosmwasm_std::from_json::<StdAck>(&msg.ack.data)?.is_success() {
+        return Err(ContractError::AckNotSuccess {});
+    }
 
-fn create_mint_submsg(svg_addr: &Addr, mint_price: Uint128) -> Result<SubMsg, ContractError> {
-    let funds = if mint_price.is_zero() {
-        vec![]
-    } else {
-        vec![Coin {
-            denom: "utry".to_string(),
-            amount: Uint256::from(mint_price.u128()),
-        }]
+    let packet_data: FungibleTokenPacketData = from_json(&msg.packet.data)?;
+    let funds = &msg.transfer.expect("msg").funds;
+
+    let receiver = deps.api.addr_validate(packet_data.receiver.as_ref())?;
+    ensure_eq!(
+        receiver,
+        env.contract.address,
+        ContractError::ReceiverMismatch {
+            w: env.contract.address.to_string(),
+            f: receiver.to_string(),
+        }
+    );
+
+    let actions = match !packet_data.memo.is_empty() {
+        true => {
+            let memo: ShitstrapMemoAdr08 = from_json(packet_data.memo.as_bytes())
+                .map_err(|e| ContractError::MemoParseError { e: e.to_string() })?;
+
+            if memo.ibc_callback != env.contract.address.to_string() {
+                return Err(ContractError::CallbackAddrMismatch {});
+            }
+
+            memo.a
+        }
+        _ => Default::default(),
     };
 
-    let mint_msg = WasmMsg::Execute {
-        contract_addr: svg_addr.to_string(),
-        msg: to_json_binary(&SvgMintMsg {
-            amount: 1,
-            proof_hashes: None,
-            allocation: 0,
-        })?,
-        funds,
-    };
-
-    Ok(SubMsg::reply_always(
-        CosmosMsg::Wasm(mint_msg),
-        MINT_REPLY_ID,
-    ))
+    Ok(IbcBasicResponse::new()
+        .add_messages(actions)
+        .add_attribute("action", "ibc_destination_callback")
+        .add_attribute("receiver", receiver.to_string())
+        .add_attribute("num_transfers", funds.len().to_string()))
 }
 
 // ── Shared core deposit logic ──
@@ -424,8 +430,8 @@ fn execute_deposit(
     deps: &mut DepsMut,
     info: &MessageInfo,
     shit: &AssetUnchecked,
-    shit_strapper: &Addr,
-    dao: &Option<Addr>,
+    shitter: &Addr,
+    dao: &Option<String>,
 ) -> Result<DepositData, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -591,20 +597,19 @@ fn send_accumulated_to_owner(
     Ok(msgs)
 }
 
-// ── Entrypoints ──
-
 /// Entry point to participate in shitstrap. If mint_config is Some, injects a mint
 /// SubMsg when cutoff is reached (ShitStrapAndMint path) instead of the normal
 /// owner token distribution (which happens asynchronously in the reply handler).
-pub fn execute_shit_strap(
+pub fn execute_shit_strap_internal(
     mut deps: DepsMut,
     info: MessageInfo,
     shit: AssetUnchecked,
-    shit_strapper: Addr,
-    dao: Option<Addr>,
-    mint_config: Option<MintConfig>,
+    shitter: Addr,
+    recp: Option<String>,
+    dao: Option<String>,
+    nft: Option<SvgMintCallbackAction>,
 ) -> Result<Response, ContractError> {
-    let deposit = execute_deposit(&mut deps, &info, &shit, &shit_strapper, &dao)?;
+    let deposit = execute_deposit(&mut deps, &info, &shit, &shitter, &dao)?;
     let config = CONFIG.load(deps.storage)?;
     let mut msgs: Vec<CosmosMsg> = vec![];
     let mut submsgs: Vec<SubMsg> = vec![];
@@ -614,83 +619,49 @@ pub fn execute_shit_strap(
     let cutoff = config.cutoff;
 
     if new_val >= cutoff {
-        if mint_config.is_none() {
-            // Normal ShitStrap cutoff — distribute to owner, refund overflow
-            let (overflow, return_amount) =
-                calculate_shit_return(new_val, cutoff, deposit.shit_rate.into())?;
+        // Normal ShitStrap cutoff — distribute to owner, refund overflow
+        let (overflow, return_amount) =
+            calculate_shit_return(new_val, cutoff, deposit.shit_rate.into())?;
 
-            let own_msgs = send_accumulated_to_owner(
-                &deps.as_ref(),
-                &deposit.denom_key,
-                deposit.shit_value,
-                overflow,
-                &config.owner,
-            )?;
-            msgs.extend(own_msgs);
+        let own_msgs = send_accumulated_to_owner(
+            &deps.as_ref(),
+            &deposit.denom_key,
+            deposit.shit_value,
+            overflow,
+            &config.owner,
+        )?;
+        msgs.extend(own_msgs);
+        //  refunds always are obligated to shitter, even if there is some recp.
+        let refund_msg = build_transfer_msg(
+            matches!(deposit.received_denom, CheckedDenom::Cw20(_)),
+            deposit.received_denom.to_string(),
+            return_amount,
+            shitter.clone(),
+        )?;
+        REFUND_SHIT.save(deps.storage, shitter.clone(), &refund_msg)?;
 
-            let refund_msg = build_transfer_msg(
-                matches!(deposit.received_denom, CheckedDenom::Cw20(_)),
-                deposit.received_denom.to_string(),
-                return_amount,
-                shit_strapper.clone(),
-            )?;
-            REFUND_SHIT.save(deps.storage, shit_strapper.clone(), &refund_msg)?;
+        let mut updated = config.clone();
+        updated.full_of_shit = true;
+        CONFIG.save(deps.storage, &updated)?;
 
-            let mut updated = config.clone();
-            updated.full_of_shit = true;
-            CONFIG.save(deps.storage, &updated)?;
-
-            attrs.push(Attribute::new("cutoff_reached", "true"));
-        } else {
-            // ShitStrapAndMint path — inject mint submsg, owner distribution deferred to reply
-            let svg_addr = SVG_COLLECTION_ADDRESS
-                .may_load(deps.storage)?
-                .ok_or(ContractError::NoSvgCollection {})?;
-
-            let temp = MintTempStorage {
-                shit_strapper: shit_strapper.clone(),
-                shit_amount: shit.amount,
-                shit_value: deposit.shit_value,
-                received_denom: deposit.received_denom.clone(),
-                shit_rate: deposit.shit_rate,
-                denom_key: deposit.denom_key.clone(),
-                previous_shit_value: new_val - deposit.shit_value,
-            };
-            MINT_TEMP_STORAGE.save(deps.storage, &temp)?;
-
-            let mut updated = config.clone();
-            updated.full_of_shit = true;
-            CONFIG.save(deps.storage, &updated)?;
-
-            let cfg = mint_config.as_ref().unwrap();
-            submsgs.push(create_mint_submsg(&svg_addr, cfg.price)?);
-
-            attrs.push(Attribute::new("cutoff_reached", "true"));
-        }
+        attrs.push(Attribute::new("cutoff_reached", "true"));
     }
 
-    // Always send SHITMOS to depositor
-    let send_shitmos = config
-        .shitmos_addr
-        .get_transfer_to_message(&shit_strapper, deposit.shit_value)?;
+    let send_shitmos = config.shitmos_addr.get_transfer_to_message(
+        &match recp {
+            Some(r) => deps.api.addr_validate(&r)?,
+            None => shitter,
+        },
+        deposit.shit_value,
+    )?;
     msgs.push(send_shitmos);
 
     // Save updated total value
     CURRENT_SHITSTRAP_VALUE.save(deps.storage, &new_val)?;
-
-    let is_and_mint = mint_config.is_some();
     Ok(Response::new()
         .add_messages(msgs)
         .add_submessages(submsgs)
-        .add_attributes(attrs)
-        .add_attribute(
-            "action",
-            if is_and_mint {
-                "shit_strap_and_mint"
-            } else {
-                "shit_strap"
-            },
-        ))
+        .add_attributes(attrs))
 }
 
 /// Entry point to manually set contract to full of shit. Owner only.
@@ -730,20 +701,6 @@ pub fn execute_flush(deps: DepsMut, sender: Addr) -> Result<Response, ContractEr
         .add_messages(msgs))
 }
 
-/// Thin wrapper around execute_shit_strap that injects mint submessage on cutoff.
-pub fn execute_shit_strap_and_mint(
-    deps: DepsMut,
-    info: MessageInfo,
-    shit: AssetUnchecked,
-    shit_strapper: Addr,
-    dao: Option<Addr>,
-) -> Result<Response, ContractError> {
-    let mint_cfg = Some(MintConfig {
-        price: MINT_PRICE.load(deps.storage).unwrap_or(Uint128::zero()),
-    });
-    execute_shit_strap(deps, info, shit, shit_strapper, dao, mint_cfg)
-}
-
 /// Owner-only: set the SVG collection contract address for minting
 pub fn execute_update_svg_collection(
     deps: DepsMut,
@@ -755,111 +712,11 @@ pub fn execute_update_svg_collection(
         return Err(ContractError::ShittyAuthorization {});
     }
     let addr = deps.api.addr_validate(&address)?;
-    SVG_COLLECTION_ADDRESS.save(deps.storage, &addr)?;
+    SVG_MINTER.save(deps.storage, &addr)?;
     Ok(Response::new()
         .add_attribute("action", "update_svg_collection")
         .add_attribute("address", address))
 }
-
-// ── REPLY HANDLER ──
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
-    if reply.id != MINT_REPLY_ID {
-        return Err(ContractError::MintTempNotFound {});
-    }
-
-    let temp = MINT_TEMP_STORAGE.load(deps.storage)?;
-
-    match reply.result {
-        SubMsgResult::Ok(_) => handle_mint_success(deps, temp),
-        SubMsgResult::Err(e) => handle_mint_failure(deps, temp, e),
-    }
-}
-
-fn handle_mint_success(deps: DepsMut, temp: MintTempStorage) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let new_val = temp.shit_value + temp.previous_shit_value;
-
-    let (overflow, return_amount) =
-        calculate_shit_return(new_val, config.cutoff, temp.shit_rate.into())?;
-
-    // Send accumulated tokens to owner
-    let msgs = send_accumulated_to_owner(
-        &deps.as_ref(),
-        &temp.received_denom.to_string(),
-        temp.shit_amount,
-        overflow,
-        &config.owner,
-    )?;
-
-    // Store refund for overflow
-    let refund_msg = build_transfer_msg(
-        matches!(temp.received_denom, CheckedDenom::Cw20(_)),
-        temp.received_denom.to_string(),
-        return_amount,
-        temp.shit_strapper.clone(),
-    )?;
-    REFUND_SHIT.save(deps.storage, temp.shit_strapper.clone(), &refund_msg)?;
-
-    MINT_TEMP_STORAGE.remove(deps.storage);
-
-    Ok(Response::new()
-        .add_messages(msgs)
-        .add_attribute("action", "mint_reply_success")
-        .add_attribute("shit_strapper", temp.shit_strapper.to_string())
-        .add_attribute("shit_value", temp.shit_value.to_string()))
-}
-
-fn handle_mint_failure(
-    deps: DepsMut,
-    temp: MintTempStorage,
-    error: String,
-) -> Result<Response, ContractError> {
-    // Restore full_of_shit to false
-    let mut config = CONFIG.load(deps.storage)?;
-    config.full_of_shit = false;
-    CONFIG.save(deps.storage, &config)?;
-
-    // Restore CURRENT_SHITSTRAP_VALUE
-    CURRENT_SHITSTRAP_VALUE.save(deps.storage, &temp.previous_shit_value)?;
-
-    // Rollback SHITSTRAP_STATE
-    let current_deposit = SHITSTRAP_STATE
-        .may_load(deps.storage, temp.denom_key.clone())?
-        .unwrap_or_default();
-    let restored = current_deposit
-        .0
-        .checked_sub(temp.shit_amount)
-        .unwrap_or(Uint256::zero());
-    if restored.is_zero() {
-        SHITSTRAP_STATE.remove(deps.storage, temp.denom_key.clone());
-    } else {
-        SHITSTRAP_STATE.save(
-            deps.storage,
-            temp.denom_key.clone(),
-            &(restored, current_deposit.1),
-        )?;
-    }
-
-    // Store full refund so the shitter can call RefundShitter
-    let refund_msg = build_transfer_msg(
-        matches!(temp.received_denom, CheckedDenom::Cw20(_)),
-        temp.received_denom.to_string(),
-        temp.shit_amount,
-        temp.shit_strapper.clone(),
-    )?;
-    REFUND_SHIT.save(deps.storage, temp.shit_strapper.clone(), &refund_msg)?;
-
-    MINT_TEMP_STORAGE.remove(deps.storage);
-
-    Ok(Response::new()
-        .add_attribute("action", "mint_reply_failure")
-        .add_attribute("shit_strapper", temp.shit_strapper.to_string())
-        .add_attribute("error", error))
-}
-
-// ── Existing helpers ──
 
 #[cfg(feature = "dao")]
 fn check_voting_power(
@@ -910,23 +767,29 @@ fn receive_cw20_message(
 ) -> Result<Response, ContractError> {
     let sender_str = info.sender.to_string();
     match from_json(&msg.msg)? {
-        ReceiveMsg::ShitStrap { shit_strapper, dao } => {
-            let sender = deps.api.addr_validate(&shit_strapper)?;
-            execute_shit_strap(
+        ReceiveMsg::ShitStrap { shitter, recp, dao } => {
+            let shitter = deps.api.addr_validate(&shitter)?;
+            execute_shit_strap_internal(
                 deps,
                 info,
                 AssetUnchecked {
                     denom: UncheckedDenom::Cw20(sender_str),
                     amount: msg.amount,
                 },
-                sender,
+                shitter,
+                recp,
                 dao,
                 None,
             )
         }
-        ReceiveMsg::ShitStrapAndMint { shit_strapper, dao } => {
-            let sender = deps.api.addr_validate(&shit_strapper)?;
-            execute_shit_strap_and_mint(
+        ReceiveMsg::ShitStrapAndMint {
+            shitter,
+            recp,
+            dao,
+            mint,
+        } => {
+            let sender = deps.api.addr_validate(&shitter)?;
+            execute_shit_strap_internal(
                 deps,
                 info,
                 AssetUnchecked {
@@ -934,7 +797,9 @@ fn receive_cw20_message(
                     amount: msg.amount,
                 },
                 sender,
+                recp,
                 dao,
+                Some(mint),
             )
         }
     }
@@ -1004,6 +869,12 @@ pub enum ContractError {
     #[error("{0}")]
     DivideByZeroError(#[from] DivideByZeroError),
 
+    #[error("MemoParseError: {e}")]
+    MemoParseError { e: String },
+
+    #[error("CallbackAddrMismatch")]
+    CallbackAddrMismatch,
+
     #[error("Wrong Shit.")]
     WrongShit {},
 
@@ -1060,6 +931,15 @@ pub enum ContractError {
 
     #[error("Mint temp storage not found")]
     MintTempNotFound {},
+
+    #[error("IBC ack is not a success")]
+    AckNotSuccess {},
+
+    #[error("No transfer data in IBC destination callback")]
+    NoTransferData {},
+
+    #[error("Receiver mismatch: expected {w}, got {f}")]
+    ReceiverMismatch { w: String, f: String },
 }
 
 impl PartialEq for ContractError {
@@ -1342,8 +1222,9 @@ mod tests {
                     sender: sender.into(),
                     amount: amount.into(),
                     msg: to_json_binary(&ReceiveMsg::ShitStrap {
-                        shit_strapper: sender.to_string(),
+                        shitter: sender.to_string(),
                         dao: None,
+                        recp: None,
                     })
                     .unwrap(),
                 }),
@@ -1367,6 +1248,7 @@ mod tests {
                         amount: amount.into(),
                     },
                     dao: None,
+                    recp: None,
                 },
                 &vec![coin(amount, denom)],
             )?)
@@ -1536,6 +1418,7 @@ mod tests {
                 &super::msg::ExecuteMsg::ShitStrap {
                     shit: AssetUnchecked::from_native("usilk", first_deposit),
                     dao: None,
+                    recp: None,
                 },
                 &vec![coin(first_deposit, "uatom")],
             )
@@ -1562,6 +1445,7 @@ mod tests {
                 &super::msg::ExecuteMsg::ShitStrap {
                     shit: AssetUnchecked::from_native("uatom", first_deposit),
                     dao: None,
+                    recp: None,
                 },
                 &vec![],
             )
@@ -1583,6 +1467,7 @@ mod tests {
                 &super::msg::ExecuteMsg::ShitStrap {
                     shit: AssetUnchecked::from_native("uatom", first_deposit),
                     dao: None,
+                    recp: None,
                 },
                 &vec![coin(22, "uatom")],
             )
@@ -1628,6 +1513,7 @@ mod tests {
             &super::msg::ExecuteMsg::ShitStrap {
                 shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
                 dao: None,
+                recp: None,
             },
             &vec![coin(2000000u128, "uatom")],
         )?;
@@ -1661,6 +1547,7 @@ mod tests {
                 &super::msg::ExecuteMsg::ShitStrap {
                     shit: AssetUnchecked::from_native("uatom", 2_000_000u128),
                     dao: None,
+                    recp: None,
                 },
                 &vec![coin(2_000_000u128, "uatom")],
             )
@@ -1840,6 +1727,7 @@ mod tests {
                 &super::msg::ExecuteMsg::ShitStrap {
                     shit: AssetUnchecked::from_native("usilk", first_deposit),
                     dao: None,
+                    recp: None,
                 },
                 &vec![coin(first_deposit, "usilk")],
             )
@@ -1889,8 +1777,9 @@ mod tests {
                     sender: s2.to_string(),
                     amount: 200u128.into(),
                     msg: to_json_binary(&ReceiveMsg::ShitStrap {
-                        shit_strapper: s2.to_string(),
+                        shitter: s2.to_string(),
                         dao: None,
+                        recp: None,
                     })
                     .unwrap(),
                 }),
@@ -1983,6 +1872,7 @@ mod tests {
                 s1.clone(),
                 shitstrap.clone(),
                 &super::msg::ExecuteMsg::ShitStrap {
+                    recp: None,
                     shit: AssetUnchecked {
                         denom: cw_shit_denom::UncheckedDenom::Cw20(cw20.clone()),
                         amount: first_deposit.into(),
@@ -2007,8 +1897,9 @@ mod tests {
                     sender: s2.to_string(),
                     amount: first_deposit.into(),
                     msg: to_json_binary(&ReceiveMsg::ShitStrap {
-                        shit_strapper: s2.to_string(),
+                        shitter: s2.to_string(),
                         dao: None,
+                        recp: None,
                     })
                     .unwrap(),
                 }),

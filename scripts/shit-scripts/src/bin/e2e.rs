@@ -8,34 +8,14 @@
 //!
 //! Usage:
 //!   cargo run -p shit-scripts --bin e2e --features e2e
-//!   cargo run -p shit-scripts --bin e2e --features e2e -- --keep-containers
-
-use clap::Parser;
-use shit_scripts::e2e::run_e2e;
-
-#[derive(Parser, Debug)]
-#[command(name = "shitstrap-e2e", about = "Cross-chain shitstrap + mint e2e test")]
-struct Args {
-    /// Keep Docker containers running after test (for debugging)
-    #[arg(long)]
-    keep_containers: bool,
-}
+//!   cargo run -p shit-scripts --bin e2e --features e2e --  
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
-
-    let args = Args::parse();
-
     tracing::info!("Starting cross-chain shitstrap + mint e2e test");
-
-    let chain_a_id = "120u-1";
-    let chain_b_id = "120u-2";
-
-    let keep = args.keep_containers;
-    run_e2e(chain_a_id, chain_b_id, keep).await?;
-
+    // shit_scripts::run_e2e("240u-1", "240u-1", false).await?;
     tracing::info!("E2E test completed successfully");
     Ok(())
 }

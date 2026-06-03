@@ -1,5 +1,8 @@
 // #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
+// https://github.com/informalsystems/ibc-rs/blob/main/ibc-apps/ics20-transfer/types/Cargo.toml
+// https://cosmwasm.github.io/ibc/extensions/callbacks
+
 #[cfg(test)]
 mod integration_tests;
 
@@ -8,10 +11,51 @@ use std::fmt::{self};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, BankMsg, Coin, CosmosMsg, CustomQuery, Deps, QuerierWrapper, StdError, StdResult,
-    Uint256, WasmMsg, to_json_binary,
+    Uint128, Uint256, WasmMsg, to_json_binary,
 };
 
 use thiserror::Error;
+
+#[cw_serde]
+pub struct AssetUnchecked {
+    pub denom: UncheckedDenom,
+    pub amount: Uint256,
+}
+
+impl AssetUnchecked {
+    pub fn from_native(denom: &str, amount: u128) -> Self {
+        AssetUnchecked {
+            denom: UncheckedDenom::Native(denom.into()),
+            amount: amount.into(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct PossibleShit {
+    /// Generic type for contract address or token included in shitstrap.
+    pub token: UncheckedDenom,
+    /// Atomic unit value for conversion ratio with shitmos.\
+    /// * 1000000000000000000 == 1:1 coversion ratio\
+    /// *  500000000000000000 ==  0.5
+    ///
+    pub shit_rate: Uint128,
+}
+
+impl PossibleShit {
+    pub fn native_denom(native_denom: &str, shit_rate: u128) -> Self {
+        PossibleShit {
+            token: UncheckedDenom::Native(native_denom.into()),
+            shit_rate: Uint128::new(shit_rate),
+        }
+    }
+    pub fn native_cw20(native_coin: &str, shit_rate: u128) -> Self {
+        PossibleShit {
+            token: UncheckedDenom::Cw20(native_coin.into()),
+            shit_rate: Uint128::new(shit_rate),
+        }
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum DenomError {

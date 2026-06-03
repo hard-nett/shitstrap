@@ -1,0 +1,49 @@
+# Exclude .git directories — not needed for compilation
+**/.git
+**/.gitignore
+**/.gitmodules
+
+# Build artifacts — don't copy compiled output into the container
+target/
+
+# Test fixtures — not needed for building bob
+tests/
+
+# Git
+.git/
+.gitignore
+
+# Exclude snapshot/cache data
+**/target
+**/snapshot*
+**/.snapshot*
+
+# Exclude IDE and editor files
+**/.idea
+**/.vscode
+**/*.swp
+**/*.swo
+**/.DS_Store
+
+# Exclude large media and data files
+**/*.mp4
+**/*.mp3
+**/*.wav
+**/*.pdf
+**/*.zip
+**/*.tar.gz
+**/*.tgz
+
+# Exclude node_modules and other non-Rust deps
+**/node_modules
+
+# We only need the Dockerfile and entrypoint script in build context
+# Everything else is mounted at runtime
+*
+!Dockerfile
+!dao-optimize.sh
+# Bob source files
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/**

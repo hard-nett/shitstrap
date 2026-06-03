@@ -31,6 +31,15 @@ pub enum ContractError {
 
     #[error("vesting contract vests ({expected}) tokens, funded with ({sent})")]
     WrongFundAmount { sent: Uint128, expected: Uint128 },
+
+    #[error("IBC ack is not a success")]
+    AckNotSuccess {},
+
+    #[error("No transfer data in IBC destination callback")]
+    NoTransferData {},
+
+    #[error("Receiver mismatch: expected {expected}, got {got}")]
+    ReceiverMismatch { expected: String, got: String },
 }
 
 impl PartialEq for ContractError {

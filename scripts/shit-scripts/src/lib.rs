@@ -1,12 +1,13 @@
+mod e2e;
+
 use cosmwasm_std::Decimal;
 use cw_orch::prelude::*;
 use cw_shitstrap::contract::interface::CwShitstrap;
 use cw_shitstrap_factory::{interface::CwShitstrapFactory, msg::ExecuteMsgFns as _};
 
 pub use cw_shit_denom::UncheckedDenom;
-pub use cw_shitstrap::contract::msg::{InstantiateMsg as ShitInitMsg, PossibleShit};
+pub use cw_shitstrap::contract::msg::InstantiateMsg as ShitInitMsg;
 pub use cw_shitstrap_factory::msg::InstantiateMsg as ShitFactoryInitMsg;
-pub use cw_shitstrap_ibc_callbacks::contract::interface::CwShitstrapCallback;
 #[derive(Clone, Debug, Default)]
 pub struct CwShitstrapSuiteDeployData {
     pub shit: Vec<ShitInitMsg>,
@@ -17,7 +18,6 @@ pub struct CwShitstrapSuite<Chain> {
     pub chain: Chain,
     pub shitstrap: CwShitstrap<Chain>,
     pub factory: CwShitstrapFactory<Chain>,
-    pub ibc: CwShitstrapCallback<Chain>,
 }
 
 impl<Chain: CwEnv> CwShitstrapSuite<Chain> {
@@ -26,13 +26,11 @@ impl<Chain: CwEnv> CwShitstrapSuite<Chain> {
             chain: chain.clone(),
             shitstrap: CwShitstrap::new(chain.clone()),
             factory: CwShitstrapFactory::new(chain.clone()),
-            ibc: CwShitstrapCallback::new(chain.clone()),
         }
     }
     pub fn upload(&self) -> Result<(), CwOrchError> {
         self.shitstrap.upload()?;
         self.factory.upload()?;
-        self.ibc.upload()?;
         Ok(())
     }
 }
@@ -74,7 +72,7 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwShitstrapSuite<Chain> 
                 )?;
 
                 for (i, init) in d.shit.iter().enumerate() {
-                    suite
+                    let res = suite
                         .factory
                         .create_native_shit_strap_contract(init.clone(), format!("{i}",))?;
                 }
@@ -97,7 +95,7 @@ pub fn shit_deploy_data_single(admin: Addr) -> Option<CwShitstrapSuiteDeployData
     dd.shit = vec![ShitInitMsg {
         daos: Vec::new(),
         owner: Some(admin.to_string()),
-        accepted: vec![PossibleShit::native_denom(
+        accepted: vec![cw_shit_denom::PossibleShit::native_denom(
             "uthiol",
             50_000_000_000_000_000u128,
         )],
@@ -184,7 +182,10 @@ pub fn build_shit_init(
     ShitInitMsg {
         daos: Vec::new(),
         owner: Some(admin.to_string()),
-        accepted: vec![PossibleShit::native_denom(native_denom, shit_rate)],
+        accepted: vec![cw_shit_denom::PossibleShit::native_denom(
+            native_denom,
+            shit_rate,
+        )],
         cutoff: cutoff.into(),
         shitmos: UncheckedDenom::Native("uthiol".into()),
         title: title.into(),

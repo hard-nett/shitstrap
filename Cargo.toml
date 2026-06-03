@@ -4,7 +4,6 @@ exclude = [  "scripts/shit-scripts" ]
 members =  [
   "contracts/cw-shitstrap",
   "contracts/cw-shitstrap-factory",
-  "contracts/cw-shitstrap-ibc-callbacks", 
   "packages/cw-shit-denom", 
   "scripts/shit-scripts",
 ]
@@ -43,11 +42,12 @@ cw-storage-plus   = { path = "../cw-storage-plus" }
 cw2 = { path = "../cw-minus/packages/cw2" }
 cw20 = { path = "../cw-plus/packages/cw20" }
 cw20-base = { path = "../cw-plus/contracts/cw20-base" }
-dao-interface = {version =  "2.6.0"}
+dao-interface  = { path = "../dao-contracts/packages/dao-interface" }
 cw-orch = { path = "../cw-orchestrator/cw-orch" }
+cw-orch-interchain = { path = "../cw-orchestrator/cw-orch-interchain" }
 cw-shitstrap = { path = "contracts/cw-shitstrap"}
 cw-shitstrap-factory = { path = "contracts/cw-shitstrap-factory"}
-cw-shitstrap-ibc-callbacks = { path = "contracts/cw-shitstrap-ibc-callbacks"}
+ibc-app-transfer-types = { path = "../ibc-rs/ibc-apps/ics20-transfer/types"}
 cw-shit-denom = { path = "packages/cw-shit-denom"}
 sha2 = "0.10"
 schemars = "0.8.16"
@@ -56,4 +56,4 @@ thiserror = { version = "1.0.58" }
 cw-multi-test  = { path = "../cw-multi-test" }
 cw-utils = { path = "../cw-minus/packages/cw-utils", version = "3.0.0" }
 cw-ownable = { path = "../cw-plus-plus/packages/ownable" }
-
+cw-svg  = { path = "../cw-infuser/packages/cw-svg" }
