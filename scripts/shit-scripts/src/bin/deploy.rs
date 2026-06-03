@@ -9,14 +9,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let terp = interchain.get_chain("terp")?;
     let osmo = interchain.get_chain("localosmosis")?;
-
-    // define accepted ibc denoms
+    //  query ibc information between each tokens native chain to establish clear ibc-denom hash to use when instantiating the shitstraps
+    // with channel information, lets now define accepted ibc denoms
     let akt = ibc_denom_hash("channel-0", "transfer", "uthiol");
     let btc = ibc_denom_hash("channel-0", "transfer", "uthiol");
     let atone = ibc_denom_hash("channel-0", "transfer", "uthiol");
     let photon = ibc_denom_hash("channel-0", "transfer", "uthiol");
     let ibc_denoms = vec![akt, btc, atone, photon];
-
     let dd = new_default_ibc_set(terp.sender_addr(), ibc_denoms);
     let shit = CwShitstrapSuite::deploy_on(terp.clone(), Some(dd))?;
 

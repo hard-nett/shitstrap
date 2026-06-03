@@ -344,7 +344,11 @@ pub fn ibc_destination_callback(
     }
 
     let packet_data: FungibleTokenPacketData = from_json(&msg.packet.data)?;
-    let mut t_funds = &msg.transfer.expect("msg").funds;
+    let t_funds = &match &msg.transfer {
+        Some(t) => Ok::<&cosmwasm_std::IbcTransferCallback, ContractError>(t),
+        None => return Err(ContractError::DidntSendShit {}),
+    }?
+    .funds;
 
     let receiver = deps.api.addr_validate(packet_data.receiver.as_ref())?;
     ensure_eq!(
@@ -634,7 +638,7 @@ pub fn execute_shit_strap_internal(
     }
     let deposit = execute_deposit(&mut deps, &info, &shit, &shitter, &dao)?;
     let mut msgs: Vec<CosmosMsg> = vec![];
-    let mut submsgs: Vec<SubMsg> = vec![];
+    // let mut submsgs: Vec<SubMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
 
     let new_val = deposit.new_val;
@@ -680,10 +684,7 @@ pub fn execute_shit_strap_internal(
 
     // Save updated total value
     CURRENT_SHITSTRAP_VALUE.save(deps.storage, &new_val)?;
-    Ok(Response::new()
-        .add_messages(msgs)
-        .add_submessages(submsgs)
-        .add_attributes(attrs))
+    Ok(Response::new().add_messages(msgs).add_attributes(attrs))
 }
 
 /// Entry point to manually set contract to full of shit. Owner only.
@@ -974,5 +975,3 @@ impl PartialEq for ContractError {
         }
     }
 }
-
- 

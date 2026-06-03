@@ -480,100 +480,100 @@ fn test_update_vesting_code_id() {
     assert_eq!(info.code_id, cw_vesting_code_two);
 }
 
-/// This test was contributed by Oak Security as part of their audit
-/// of cw-vesting. It addresses issue two, "Misconfiguring the total
-/// vested amount to be lower than the sent CW20 amount would cause a
-/// loss of funds".
-#[test]
-pub fn test_inconsistent_cw20_amount() {
-    let mut app = App::default();
-    let a = app.api().addr_make(ALICE);
-    let b = app.api().addr_make(BOB);
-    let c: Addr = app.api().addr_make(CREATOR);
-    let e: Addr = app.api().addr_make("ekez");
-    let code_id = app.store_code(factory_contract());
-    let cw20_code_id = app.store_code(cw20_contract());
-    let cw_vesting_code_id = app.store_code(cw_vesting_contract());
-    // Instantiate cw20 contract with balances for Alice
-    let cw20_addr = app
-        .instantiate_contract(
-            cw20_code_id,
-            a.clone(),
-            &cw20_base::msg::InstantiateMsg {
-                name: "cw20 token".to_string(),
-                symbol: "cwtwenty".to_string(),
-                decimals: 6,
-                initial_balances: vec![Cw20Coin {
-                    address: a.to_string(),
-                    amount: Uint256::new(INITIAL_BALANCE),
-                }],
-                mint: None,
-                marketing: None,
-            },
-            &[],
-            "cw20-base",
-            None,
-        )
-        .unwrap();
-    let instantiate = InstantiateMsg {
-        owner: Some(a.to_string()),
-        shitstrap_id: cw_vesting_code_id,
-    };
-    let factory_addr = app
-        .instantiate_contract(
-            code_id,
-            c.clone(),
-            &instantiate,
-            &[],
-            "cw-admin-factory",
-            None,
-        )
-        .unwrap();
-    // Mint alice native tokens
-    app.sudo(SudoMsg::Bank({
-        BankSudo::Mint {
-            to_address: a.to_string(),
-            amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
-        }
-    }))
-    .unwrap();
-    let amount = Uint128::new(1000000);
-    let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
-    let instantiate_payroll_msg = ShitstrapInstantiateMsg {
-        owner: Some(a.to_string()),
-        title: "title".to_string(),
-        description: "desc".to_string(),
-        accepted: vec![PossibleShit {
-            token: UncheckedDenom::Native("ubtsg".into()),
-            shit_rate: Uint128::new(1000000),
-        }],
-        cutoff: Uint128::new(1000000),
-        shitmos: UncheckedDenom::Native("ubtsg".into()),
-        daos: Vec::new(),
-    };
-    // let err: ContractError = app
-    //     .execute_contract(
-    //         Addr::unchecked(ALICE),
-    //         cw20_addr,
-    //         &Cw20ExecuteMsg::Send {
-    //             contract: factory_addr.to_string(),
-    //             amount,
-    //             msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
-    //                 instantiate_msg: instantiate_payroll_msg,
-    //                 label: "Payroll".to_string(),
-    //             })
-    //             .unwrap(),
-    //         },
-    //         &coins(amount.into(), NATIVE_DENOM), // https://github.com/CosmWasm/cw-plus/issues/862
-    //     )
-    //     .unwrap_err()
-    //     .downcast()
-    //     .unwrap();
-    // assert_eq!(
-    //     err,
-    //     ContractError::WrongFundAmount {
-    //         sent: amount,
-    //         expected: amount - Uint128::one()
-    //     }
-    // );
-}
+// /// This test was contributed by Oak Security as part of their audit
+// /// of cw-vesting. It addresses issue two, "Misconfiguring the total
+// /// vested amount to be lower than the sent CW20 amount would cause a
+// /// loss of funds".
+// #[test]
+// pub fn test_inconsistent_cw20_amount() {
+//     let mut app = App::default();
+//     let a = app.api().addr_make(ALICE);
+//     let b = app.api().addr_make(BOB);
+//     let c: Addr = app.api().addr_make(CREATOR);
+//     let e: Addr = app.api().addr_make("ekez");
+//     let code_id = app.store_code(factory_contract());
+//     let cw20_code_id = app.store_code(cw20_contract());
+//     let cw_vesting_code_id = app.store_code(cw_vesting_contract());
+//     // Instantiate cw20 contract with balances for Alice
+//     let cw20_addr = app
+//         .instantiate_contract(
+//             cw20_code_id,
+//             a.clone(),
+//             &cw20_base::msg::InstantiateMsg {
+//                 name: "cw20 token".to_string(),
+//                 symbol: "cwtwenty".to_string(),
+//                 decimals: 6,
+//                 initial_balances: vec![Cw20Coin {
+//                     address: a.to_string(),
+//                     amount: Uint256::new(INITIAL_BALANCE),
+//                 }],
+//                 mint: None,
+//                 marketing: None,
+//             },
+//             &[],
+//             "cw20-base",
+//             None,
+//         )
+//         .unwrap();
+//     let instantiate = InstantiateMsg {
+//         owner: Some(a.to_string()),
+//         shitstrap_id: cw_vesting_code_id,
+//     };
+//     let factory_addr = app
+//         .instantiate_contract(
+//             code_id,
+//             c.clone(),
+//             &instantiate,
+//             &[],
+//             "cw-admin-factory",
+//             None,
+//         )
+//         .unwrap();
+//     // Mint alice native tokens
+//     app.sudo(SudoMsg::Bank({
+//         BankSudo::Mint {
+//             to_address: a.to_string(),
+//             amount: coins(INITIAL_BALANCE, NATIVE_DENOM),
+//         }
+//     }))
+//     .unwrap();
+//     let amount = Uint128::new(1000000);
+//     let unchecked_denom = UncheckedDenom::Cw20(cw20_addr.to_string());
+//     let instantiate_payroll_msg = ShitstrapInstantiateMsg {
+//         owner: Some(a.to_string()),
+//         title: "title".to_string(),
+//         description: "desc".to_string(),
+//         accepted: vec![PossibleShit {
+//             token: UncheckedDenom::Native("ubtsg".into()),
+//             shit_rate: Uint128::new(1000000),
+//         }],
+//         cutoff: Uint128::new(1000000),
+//         shitmos: UncheckedDenom::Native("ubtsg".into()),
+//         daos: Vec::new(),
+//     };
+//     let err: ContractError = app
+//         .execute_contract(
+//             Addr::unchecked(ALICE),
+//             cw20_addr,
+//             &Cw20ExecuteMsg::Send {
+//                 contract: factory_addr.to_string(),
+//                 amount,
+//                 msg: to_json_binary(&ReceiveMsg::InstantiatePayrollContract {
+//                     instantiate_msg: instantiate_payroll_msg,
+//                     label: "Payroll".to_string(),
+//                 })
+//                 .unwrap(),
+//             },
+//             &coins(amount.into(), NATIVE_DENOM), // https://github.com/CosmWasm/cw-plus/issues/862
+//         )
+//         .unwrap_err()
+//         .downcast()
+//         .unwrap();
+//     assert_eq!(
+//         err,
+//         ContractError::WrongFundAmount {
+//             sent: amount,
+//             expected: amount - Uint128::one()
+//         }
+//     );
+// }

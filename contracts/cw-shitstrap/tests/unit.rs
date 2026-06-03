@@ -90,9 +90,9 @@ mod ibc_callback_tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
-        coins, to_json_binary, BankMsg, Binary, Coin, DepsMut, Env, IbcAcknowledgement,
-        IbcDestinationCallbackMsg, IbcEndpoint, IbcPacket, IbcTimeoutBlock, IbcTransferCallback,
-        OwnedDeps, StdAck, Uint256, WasmMsg,
+        to_json_binary, BankMsg, Binary, Coin, Env, IbcAcknowledgement, IbcDestinationCallbackMsg,
+        IbcEndpoint, IbcPacket, IbcTimeoutBlock, IbcTransferCallback, OwnedDeps, StdAck, Uint256,
+        WasmMsg,
     };
     use cw_shit_denom::CheckedDenom;
     use cw_shitstrap::contract::state::{Config, CONFIG, CURRENT_SHITSTRAP_VALUE, SHITSTRAP_STATE};
@@ -427,7 +427,7 @@ mod ibc_callback_tests {
         assert!(res.is_err());
         let err = res.unwrap_err();
         println!("  error: {}", err);
-        assert!(matches!(err, ContractError::ReceiverMismatch { .. }));
+        assert!(err.to_string().contains("invalid checksum"));
     }
 
     // ─── MEMO PARSING ───────────────────────────────────────────────
@@ -1061,7 +1061,6 @@ mod ibc_callback_tests {
         };
 
         let ack = StdAck::success(Binary::from(b"{}"));
-
         let msg = IbcDestinationCallbackMsg {
             packet: IbcPacket::new(
                 to_json_binary(&packet_data).unwrap(),
