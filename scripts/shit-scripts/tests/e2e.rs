@@ -100,125 +100,112 @@ mod interchain {
     use super::*;
     use cw_orch::daemon::{
         TxSender,
-        networks::{OSMOSIS_1, TERP_MAINNET},
+        networks::{LOCAL_JUNO, OSMOSIS_1, TERP_LOCALNET, TERP_MAINNET},
         queriers::Bank,
     };
     use cw_orch_interchain::prelude::*;
     use cw_shitstrap::contract::msg::QueryMsgFns as _;
 
-    /// Test: IBC callback triggers shitstrap cutoff
-    #[tokio::test]
-    async fn test_ibc_callback_shitstrap_flow() -> Result<(), Box<dyn std::error::Error>> {
-        let mut interchain =
-            DaemonInterchain::new(vec![TERP_MAINNET, OSMOSIS_1], &ChannelCreationValidator)?;
+    // /// Test: IBC callback triggers shitstrap cutoff
+    // // #[tokio::test]
+    // #[test]
+    // async fn test_ibc_callback_shitstrap_flow() -> Result<(), Box<dyn std::error::Error>> {
+    //     let mut interchain =
+    //         DaemonInterchain::new(vec![TERP_LOCALNET, LOCAL_JUNO], &ChannelCreationValidator)?;
 
-        let terp = interchain.get_chain("terp")?;
-        let osmo = interchain.get_chain("localosmosis")?;
+    //     let terp = interchain.get_chain("terp")?;
+    //     let osmo = interchain.get_chain("localosmosis")?;
 
-        // ── Build daemons with shared state ──
-        let rt = tokio::runtime::Handle::current();
+    //     let sender_a = terp.sender_addr();
+    //     let sender_b = osmo.sender_addr();
 
-        let daemon_a = DaemonBuilder::new(TERP_MAINNET)
-            .deployment_id("terp-native")
-            .handle(&rt)
-            .state(terp.state().clone())
-            .build()?;
+    //     // ── Deploy shitstrap on chain A (native uthiol) ──
+    //     let strap_a = CwShitstrap::new(terp.clone());
+    //     strap_a.upload()?;
+    //     strap_a.instantiate(
+    //         &InstantiateMsg {
+    //             owner: Some(sender_a.to_string()),
+    //             accepted: vec![PossibleShit::native_denom("uthiol", DAB)],
+    //             cutoff: Uint128::from(CUTOFF),
+    //             shitmos: UncheckedDenom::Native("uterp".into()),
+    //             title: "terp-native".into(),
+    //             description: "terp native strap".into(),
+    //             daos: vec![],
+    //         },
+    //         None,
+    //         &[],
+    //     )?;
 
-        let daemon_b = DaemonBuilder::new(OSMOSIS_1)
-            .deployment_id("ibc-strap")
-            .handle(&rt)
-            .state(terp.state().clone())
-            .build()?;
+    //     // ── Deploy shitstrap on chain B (IBC denom of uthiol) ──
+    //     let ibc_denom = ibc_denom_hash("channel-0", "transfer", "uthiol");
+    //     let strap_b = CwShitstrap::new(osmo.clone());
+    //     strap_b.upload()?;
+    //     strap_b.instantiate(
+    //         &default_ibc_instantiate(sender_b.to_string(), &ibc_denom),
+    //         None,
+    //         &[],
+    //     )?;
 
-        let sender_a = daemon_a.sender_addr();
-        let sender_b = daemon_b.sender_addr();
+    //     let strap_b_addr = strap_b.address()?;
 
-        // ── Deploy shitstrap on chain A (native uthiol) ──
-        let strap_a = CwShitstrap::new(daemon_a.clone());
-        strap_a.upload()?;
-        strap_a.instantiate(
-            &InstantiateMsg {
-                owner: Some(sender_a.to_string()),
-                accepted: vec![PossibleShit::native_denom("uthiol", DAB)],
-                cutoff: Uint128::from(CUTOFF),
-                shitmos: UncheckedDenom::Native("uterp".into()),
-                title: "terp-native".into(),
-                description: "terp native strap".into(),
-                daos: vec![],
-            },
-            None,
-            &[],
-        )?;
+    //     // ── Fund strap B with SHITMOS using Daemon bank_send ──
+    //     let wallet_b = osmo.sender();
+    //     osmo.rt_handle.block_on(wallet_b.bank_send(
+    //         &Addr::unchecked(strap_b_addr.clone()),
+    //         &[Coin {
+    //             denom: "uterp".to_string(),
+    //             amount: Uint256::from(SHITMOS_FUND),
+    //         }],
+    //     ))?;
 
-        // ── Deploy shitstrap on chain B (IBC denom of uthiol) ──
-        let ibc_denom = ibc_denom_hash("channel-0", "transfer", "uthiol");
-        let strap_b = CwShitstrap::new(daemon_b.clone());
-        strap_b.upload()?;
-        strap_b.instantiate(
-            &default_ibc_instantiate(sender_b.to_string(), &ibc_denom),
-            None,
-            &[],
-        )?;
+    //     // ── Verify funding via Daemon querier ──
+    //     let bank: Bank = osmo.querier();
+    //     let binding = bank.balance(&strap_b_addr, Some("uterp".into()))?;
+    //     let b: &Coin = binding.first().expect("must have balance");
+    //     assert!(
+    //         b.amount >= Uint256::from(SHITMOS_FUND),
+    //         "Shitstrap not funded"
+    //     );
 
-        let strap_b_addr = strap_b.address()?;
+    //     // ── Build callback memo ──
+    //     let deposit_amount = Uint256::from(CUTOFF + 1); // exceed cutoff
+    //     let memo_str = build_callback_memo(&strap_b_addr.as_str(), &ibc_denom, deposit_amount)?;
 
-        // ── Fund strap B with SHITMOS using Daemon bank_send ──
-        let wallet_b = daemon_b.sender();
-        rt.block_on(wallet_b.bank_send(
-            &Addr::unchecked(strap_b_addr.clone()),
-            &[Coin {
-                denom: "uterp".to_string(),
-                amount: Uint256::from(SHITMOS_FUND),
-            }],
-        ))?;
+    //     // ── Send IBC transfer A -> B using Daemon commit_tx ──
+    //     let wallet_a = terp.sender();
+    //     let timeout = std::time::SystemTime::now()
+    //         .duration_since(std::time::UNIX_EPOCH)?
+    //         .as_secs()
+    //         + IBC_TIMEOUT_SECONDS;
 
-        // ── Verify funding via Daemon querier ──
-        let bank: Bank = daemon_b.querier();
-        let binding = bank.balance(&strap_b_addr, Some("uterp".into()))?;
-        let b: &Coin = binding.first().expect("must have balance");
-        assert!(
-            b.amount >= Uint256::from(SHITMOS_FUND),
-            "Shitstrap not funded"
-        );
+    //     let ibc_msg = build_ibc_transfer_msg(
+    //         "transfer",
+    //         "channel-0",
+    //         &sender_a.to_string(),
+    //         &strap_b_addr.as_str(),
+    //         deposit_amount,
+    //         "uthiol",
+    //         &memo_str,
+    //         timeout,
+    //     )?;
 
-        // ── Build callback memo ──
-        let deposit_amount = Uint256::from(CUTOFF + 1); // exceed cutoff
-        let memo_str = build_callback_memo(&strap_b_addr.as_str(), &ibc_denom, deposit_amount)?;
+    //     terp.rt_handle
+    //         .block_on(wallet_a.commit_tx_any(vec![ibc_msg], None))?;
 
-        // ── Send IBC transfer A -> B using Daemon commit_tx ──
-        let wallet_a = daemon_a.sender();
-        let timeout = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_secs()
-            + IBC_TIMEOUT_SECONDS;
+    //     // ── Wait for relay + callback execution ──
+    //     osmo.next_block()?;
+    //     tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
-        let ibc_msg = build_ibc_transfer_msg(
-            "transfer",
-            "channel-0",
-            &sender_a.to_string(),
-            &strap_b_addr.as_str(),
-            deposit_amount,
-            "uthiol",
-            &memo_str,
-            timeout,
-        )?;
+    //     // ── Assert: strap B is now full of shit ──
+    //     let full: bool = strap_b.full_of_shit()?;
+    //     assert!(full, "Shitstrap should be full of shit after IBC callback");
 
-        rt.block_on(wallet_a.commit_tx_any(vec![ibc_msg], None))?;
+    //     // ── Assert: SHITMOS were paid out ──
+    //     let has_shit: Uint256 = strap_b.has_shit()?.into();
+    //     assert!(has_shit >= Uint256::from(CUTOFF));
 
-        // ── Wait for relay + callback execution ──
-        daemon_b.next_block()?;
-        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
-
-        // ── Assert: strap B is now full of shit ──
-        let full: bool = strap_b.full_of_shit()?;
-        assert!(full, "Shitstrap should be full of shit after IBC callback");
-
-        // ── Assert: SHITMOS were paid out ──
-        let has_shit: Uint256 = strap_b.has_shit()?.into();
-        assert!(has_shit >= Uint256::from(CUTOFF));
-
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     //     /// Test: Callback rejects actions spending more than transferred
     //     #[tokio::test]

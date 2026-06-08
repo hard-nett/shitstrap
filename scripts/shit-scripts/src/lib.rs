@@ -52,7 +52,7 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwShitstrapSuite<Chain> 
     }
 
     fn deploy_on(chain: Chain, data: Self::DeployData) -> Result<Self, Self::Error> {
-        let mut suite = CwShitstrapSuite::store_on(chain.clone())?;
+        let suite = CwShitstrapSuite::store_on(chain.clone())?;
         match data {
             Some(d) => {
                 // Always create a factory on deploy
@@ -70,7 +70,7 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwShitstrapSuite<Chain> 
                 )?;
 
                 for (i, init) in d.shit.iter().enumerate() {
-                    let res = suite
+                    let _res = suite
                         .factory
                         .create_native_shit_strap_contract(init.clone(), format!("{i}",))?;
                 }

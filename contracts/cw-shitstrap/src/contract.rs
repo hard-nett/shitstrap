@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-use std::fmt::format;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     ensure_eq, from_json, to_json_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, IbcBasicResponse, IbcDestinationCallbackMsg, MessageInfo, Response, StdAck,
-    StdResult, SubMsg, Uint128, Uint256, WasmMsg,
+    StdResult, Uint128, Uint256, WasmMsg,
 };
 
 use cosmwasm_std::{DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError};
@@ -311,10 +308,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ShitRates {} => {
             let shit_rates: Vec<PossibleShit> = POSSIBLE_SHIT
                 .range(deps.storage, None, None, cosmwasm_std::Order::Descending)
-                .map(|c| {
-                    let (c, b) = c.unwrap();
-                    b
-                })
+                .map(|c| c.unwrap().1)
                 .collect();
             to_json_binary(&shit_rates)
         }
@@ -376,6 +370,7 @@ pub fn ibc_destination_callback(
 
     // here we must sanity check sent funds.
     // - require t_funds does not undeflow available allocations to ibc-callback msgs (cannot spend more than sent)
+    use std::collections::HashMap;
     let mut available: HashMap<String, Uint256> = HashMap::new();
     for coin in t_funds {
         let entry = available
@@ -681,6 +676,8 @@ pub fn execute_shit_strap_internal(
         deposit.shit_value,
     )?;
     msgs.push(send_shitmos);
+
+    if let Some(nft) = nft {}
 
     // Save updated total value
     CURRENT_SHITSTRAP_VALUE.save(deps.storage, &new_val)?;
