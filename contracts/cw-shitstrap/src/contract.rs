@@ -92,8 +92,6 @@ pub mod msg {
         Flush {},
         /// Cw20 Entry Point
         Receive(Cw20ReceiveMsg),
-        /// Refunds anyone that was the last one to shitstrap, and sent excess funds.
-        RefundShitter {},
         /// Atomically deposit tokens and trigger mint from SVG collection if cutoff reached.
         /// Sends funds (native) along with the execute message.
         ShitStrapAndMint {
@@ -155,11 +153,11 @@ pub mod msg {
     }
 }
 
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_schema, cw_serde};
 
 pub mod state {
     use super::*;
-    use cosmwasm_std::{Addr, CosmosMsg, Uint128, Uint256};
+    use cosmwasm_std::{Addr, Uint128, Uint256};
     use cw_shit_denom::{CheckedDenom, PossibleShit};
     use cw_storage_plus::{Item, Map};
 
@@ -179,8 +177,7 @@ pub mod state {
     pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
     pub const CONFIG: Item<Config> = Item::new("s");
     pub const CURRENT_SHITSTRAP_VALUE: Item<Uint256> = Item::new("h");
-    pub const REFUND_SHIT: Map<Addr, CosmosMsg> = Map::new("i");
-    pub const SHITSTRAP_STATE: Map<String, (Uint256, bool)> = Map::new("t");
+    pub const SHITSTRAP_STATE: Map<String, Uint256> = Map::new("t");
     pub const POSSIBLE_SHIT: Map<String, PossibleShit> = Map::new("ps");
     /// map of eligible daos an the floor and celing limits to vp for participation.
     /// 0,0 == no min & no max
@@ -281,7 +278,6 @@ pub fn execute(
         }
         ExecuteMsg::Flush {} => execute_flush(deps, sender),
         ExecuteMsg::Receive(cw20_msg) => receive_cw20_message(deps, info, cw20_msg),
-        ExecuteMsg::RefundShitter {} => refund_shitter(deps, info),
         ExecuteMsg::ShitStrapAndMint {
             shitstrap: ss,
             mint: m,
@@ -440,15 +436,10 @@ struct DepositData {
     denom_key: String,
 }
 
-/// Shared deposit core used by BOTH ShitStrap and ShitStrapAndMint.
-/// Validates, matches token, checks DAO membership, updates SHITSTRAP_STATE.
-/// Does NOT modify config.full_of_shit or CURRENT_SHITSTRAP_VALUE.
-
 fn execute_deposit(
     deps: &mut DepsMut,
     info: &MessageInfo,
     shit: &AssetUnchecked,
-    shitter: &Addr,
     dao: &Option<String>,
 ) -> Result<DepositData, ContractError> {
     // DAO membership check
@@ -482,7 +473,7 @@ fn execute_deposit(
             for (dao_addr, (floor_raw, ceiling_raw)) in &daos {
                 check_voting_power(
                     deps.as_ref(),
-                    info.sender(),
+                    info.sender(), // sender must be dao member
                     dao_addr,
                     Uint128::try_from(*floor_raw).unwrap_or(Uint128::zero()),
                     Uint128::try_from(*ceiling_raw).unwrap_or(Uint128::zero()),
@@ -520,15 +511,14 @@ fn execute_deposit(
     let current_shit_value = CURRENT_SHITSTRAP_VALUE.load(deps.storage)?;
     let (shit_value, received_denom) = calculate_shit_value(deps.as_ref(), &matched, shit.amount)?;
 
-    // Update SHITSTRAP_STATE for this denom
+    // Update SHITSTRAP_STATE for this denom (or create it)
     let denom_key = received_denom.to_string();
     SHITSTRAP_STATE.update::<_, ContractError>(deps.storage, denom_key.clone(), |prev| {
         let this = prev.unwrap_or_default();
         let new_amount = this
-            .0
             .checked_add(shit.amount)
             .map_err(|e| ContractError::ShitStd(StdError::msg(e)))?;
-        Ok((new_amount, this.1))
+        Ok(new_amount)
     })?;
 
     // Calculate new total value
@@ -583,7 +573,7 @@ fn send_accumulated_to_owner(
     for owned in SHITSTRAP_STATE.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
         let tokens = owned?;
         let denom_key = &tokens.0;
-        let (total_amount, _) = tokens.1;
+        let total_amount = tokens.1;
 
         let is_cw20 = match POSSIBLE_SHIT.may_load(deps.storage, denom_key.to_string())? {
             Some(d) => match d.token {
@@ -593,6 +583,7 @@ fn send_accumulated_to_owner(
             None => unimplemented!(),
         };
 
+        // ensure we do not recalculate  current sent
         let send_amount = if denom_key == exclude_denom {
             total_amount - (exclude_shit_amount - overflow)
         } else {
@@ -615,7 +606,10 @@ fn send_accumulated_to_owner(
     Ok(msgs)
 }
 
-/// Entry point to participate in shitstrap. If mint_config is Some, injects a mint
+/// Entry point to participate in shitstrap.
+/// recp - if set, will recieve funds from shitstrap action
+/// shitter - the address set to recieve the funds from the shitstrap action
+///
 /// SubMsg when cutoff is reached (ShitStrapAndMint path) instead of the normal
 /// owner token distribution (which happens asynchronously in the reply handler).
 pub fn execute_shit_strap_internal(
@@ -631,7 +625,7 @@ pub fn execute_shit_strap_internal(
     if config.full_of_shit {
         return Err(ContractError::FullOfShit {});
     }
-    let deposit = execute_deposit(&mut deps, &info, &shit, &shitter, &dao)?;
+    let deposit = execute_deposit(&mut deps, &info, &shit, &dao)?;
     let mut msgs: Vec<CosmosMsg> = vec![];
     // let mut submsgs: Vec<SubMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
@@ -641,47 +635,76 @@ pub fn execute_shit_strap_internal(
 
     if new_val >= cutoff {
         // Normal ShitStrap cutoff — distribute to owner, refund overflow
-        let (overflow, return_amount) =
-            calculate_shit_return(new_val, cutoff, deposit.shit_rate.into())?;
+        let (_, return_amount) = calculate_shit_return(new_val, cutoff, deposit.shit_rate.into())?;
 
-        let own_msgs = send_accumulated_to_owner(
-            &deps.as_ref(),
-            &deposit.denom_key,
-            deposit.shit_value,
-            overflow,
-            &config.owner,
-        )?;
-        msgs.extend(own_msgs);
         //  refunds always are obligated to shitter, even if there is some recp.
-        let refund_msg = build_transfer_msg(
+        msgs.push(build_transfer_msg(
             matches!(deposit.received_denom, CheckedDenom::Cw20(_)),
             deposit.received_denom.to_string(),
             return_amount,
             shitter.clone(),
-        )?;
-        REFUND_SHIT.save(deps.storage, shitter.clone(), &refund_msg)?;
+        )?);
 
         let mut updated = config.clone();
         updated.full_of_shit = true;
         CONFIG.save(deps.storage, &updated)?;
-
         attrs.push(Attribute::new("cutoff_reached", "true"));
     }
 
-    let send_shitmos = config.shitmos_addr.get_transfer_to_message(
-        &match recp {
-            Some(r) => deps.api.addr_validate(&r)?,
-            None => shitter,
-        },
-        deposit.shit_value,
-    )?;
-    msgs.push(send_shitmos);
+    // send all funds we just shitstrap into the actions
+    let send_shitmos = match nft {
+        Some(nft) => into_cosmos_msg(
+            nft.c,
+            &nft.msg,
+            vec![config.shitmos_addr.to_cw_coin(deposit.shit_value)?],
+        )?,
+        None => config.shitmos_addr.get_transfer_to_message(
+            &match recp {
+                Some(r) => deps.api.addr_validate(&r)?,
+                None => shitter,
+            },
+            deposit.shit_value,
+        )?,
+    };
 
-    if let Some(nft) = nft {}
+    // transfer funds that were shitstrapped to the owner.
+    let send_shit = build_transfer_msg(
+        match deposit.received_denom {
+            CheckedDenom::Native(_) => false,
+            CheckedDenom::Cw20(_) => true,
+        },
+        deposit.denom_key.to_string(),
+        shit.amount,
+        config.owner.clone(),
+    )?;
+    msgs.extend(vec![send_shitmos, send_shit]);
 
     // Save updated total value
     CURRENT_SHITSTRAP_VALUE.save(deps.storage, &new_val)?;
     Ok(Response::new().add_messages(msgs).add_attributes(attrs))
+}
+
+/// Takes any cw-serde compatible type and wraps it in a WasmMsg::Execute
+///
+/// # Type Parameters
+/// * `T` - Any type that implements `Serialize` (what `#[cw_serde]` gives you)
+///
+/// # Arguments
+/// * `contract_addr` - The contract to execute against
+/// * `action` - The struct containing the action data
+/// * `funds` - Optional coins to send with the message
+pub fn into_cosmos_msg<T: cw_schema::Schemaifier + cosmwasm_schema::serde::Serialize>(
+    contract_addr: impl Into<String>,
+    action: &T,
+    funds: Vec<cosmwasm_std::Coin>,
+) -> Result<CosmosMsg, cosmwasm_std::StdError> {
+    let msg = to_json_binary(action)?;
+
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: contract_addr.into(),
+        msg,
+        funds,
+    }))
 }
 
 /// Entry point to manually set contract to full of shit. Owner only.
@@ -769,15 +792,6 @@ fn check_voting_power(
         return Err(ContractError::DontHaveShitStaked {});
     }
     Ok(())
-}
-
-fn refund_shitter(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    let sender = info.sender.clone();
-    let msg = REFUND_SHIT
-        .may_load(deps.storage, sender.clone())?
-        .ok_or(ContractError::DigginForShitTreasure {})?;
-    REFUND_SHIT.remove(deps.storage, sender);
-    Ok(Response::new().add_message(msg))
 }
 
 fn receive_cw20_message(

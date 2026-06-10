@@ -5,7 +5,7 @@ members =  [
   "contracts/cw-shitstrap",
   "contracts/cw-shitstrap-factory",
   "packages/cw-shit-denom", 
-  "scripts/shit-scripts",
+   "scripts/shit-scripts",
 ]
 resolver = "2"
 
@@ -32,12 +32,9 @@ rpath = false
 # all workspace members to stop working. Overflows should be errors.
 overflow-checks = true
 
-
-
-
 [workspace.dependencies]
 cosmwasm-schema = { path = "../cosmwasm/packages/schema" }
-terp-rs = { path = "../terp-rs/crates/sdk" }
+terp-rs = { path = "../terp-rs/crates/sdk", default-features = false }
 cosmwasm-std  = { path = "../cosmwasm/packages/std" }
 cw-storage-plus   = { path = "../cw-storage-plus" }
 cw2 = { path = "../cw-minus/packages/cw2" }
@@ -45,7 +42,6 @@ cw20 = { path = "../cw-plus/packages/cw20" }
 cw20-base = { path = "../cw-plus/contracts/cw20-base" }
 dao-interface  = { path = "../dao-contracts/packages/dao-interface" }
 cw-orch = { path = "../cw-orchestrator/cw-orch" }
-cw-orch-interchain = { path = "../cw-orchestrator/cw-orch-interchain" }
 cw-shitstrap = { path = "contracts/cw-shitstrap"}
 cw-shitstrap-factory = { path = "contracts/cw-shitstrap-factory"}
 cw-shit-denom = { path = "packages/cw-shit-denom"}

@@ -97,7 +97,7 @@ mod ibc_callback_tests {
     use cw_shit_denom::CheckedDenom;
     use cw_shitstrap::contract::state::{Config, CONFIG, CURRENT_SHITSTRAP_VALUE, SHITSTRAP_STATE};
     use cw_shitstrap::contract::{ibc_destination_callback, ContractError};
-    use terp_rs::ibc::ibc_app_transfer_types::proto::transfer::v2::FungibleTokenPacketData;
+    use terp_rs::ibc::applications::transfer::v1::FungibleTokenPacketData;
 
     /// Helper: build a minimal IbcDestinationCallbackMsg with sensible defaults.
     /// Override fields by mutating the returned struct.
@@ -200,11 +200,7 @@ mod ibc_callback_tests {
 
         for denom in denoms {
             SHITSTRAP_STATE
-                .save(
-                    &mut deps.storage,
-                    denom.to_string(),
-                    &(Uint256::zero(), false),
-                )
+                .save(&mut deps.storage, denom.to_string(), &Uint256::zero())
                 .unwrap();
         }
 

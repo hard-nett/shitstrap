@@ -221,6 +221,13 @@ impl CheckedDenom {
             .into(),
         })
     }
+
+    pub fn to_cw_coin<T: Into<Uint256>>(&self, amount: T) -> StdResult<Coin> {
+        Ok(match self {
+            CheckedDenom::Native(denom) => Coin::new(amount, denom),
+            CheckedDenom::Cw20(_) => unimplemented!(),
+        })
+    }
 }
 
 /// Follows cosmos SDK validation logic. Specifically, the regex

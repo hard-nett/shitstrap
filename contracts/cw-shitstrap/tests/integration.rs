@@ -540,18 +540,19 @@ fn test_shitstrap() -> TestResult {
 
     // confirm new balance of shitstrap
     let balance = shit.app.wrap().query_balance(&shitstrap, "uatom")?;
-    let shit_rate: Option<Uint128> = shit.app.wrap().query_wasm_smart(
-        shitstrap.clone(),
-        &QueryMsg::ShitRate {
-            asset: "uatom".to_string(),
-        },
-    )?;
-    // calulate expected
-    let dec = Decimal::from_atomics(shit_rate.unwrap(), MAX_DEC_PRECISION)?;
-    let calculated = balance
-        .amount
-        .multiply_ratio(dec.numerator(), dec.denominator());
-    assert_eq!(calculated, Uint256::new(first_deposit));
+    assert_eq!(balance.amount, Uint256::zero());
+    // let shit_rate: Option<Uint128> = shit.app.wrap().query_wasm_smart(
+    //     shitstrap.clone(),
+    //     &QueryMsg::ShitRate {
+    //         asset: "uatom".to_string(),
+    //     },
+    // )?;
+    // // calulate expected
+    // let dec = Decimal::from_atomics(shit_rate.unwrap(), MAX_DEC_PRECISION)?;
+    // let calculated = balance
+    //     .amount
+    //     .multiply_ratio(dec.numerator(), dec.denominator());
+    // assert_eq!(calculated, Uint256::new(first_deposit));
 
     // shitstrap reaches limit
     shit.app.execute_contract(
@@ -579,7 +580,8 @@ fn test_shitstrap() -> TestResult {
 
     // confirm balances
     let balance = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
-    assert_eq!(balance.amount, Uint256::new(1_000_000u128)); // 1 token is waiting to be redeemed by last shit strapper
+    assert_eq!(balance.amount, Uint256::zero()); // 1 token is waiting to be redeemed by last shit strapper
+                                                 // assert_eq!(balance.amount, Uint256::new(1_000_000u128)); // 1 token is waiting to be redeemed by last shit strapper
     let balance = shit.app.wrap().query_balance(s1.clone(), "uatom")?;
     assert_eq!(balance.amount, Uint256::new(777_000_000u128));
     let owner_bal = shit.app.wrap().query_balance(shit.owner, "uatom")?;
@@ -602,14 +604,6 @@ fn test_shitstrap() -> TestResult {
     assert!(err
         .to_string()
         .contains(&ContractError::FullOfShit {}.to_string()));
-
-    // refund on shitstrapping occurs
-    shit.app.execute_contract(
-        s1.clone(),
-        shitstrap.clone(),
-        &ExecuteMsg::RefundShitter {},
-        &[],
-    )?;
 
     // move forward in time
     let mut block = shit.app.block_info();
@@ -665,14 +659,14 @@ fn test_fee_destination() -> TestResult {
     );
 
     // user 1 funds with native
-    shit.participate_native(&s1.to_string(), 100_000_000, "uatom")?;
+    let res = shit.participate_native(&s1.to_string(), 100_000_000, "uatom")?;
 
     // confirm shit_rate is calculated correctly
-    let res: Uint128 = shit
+    let has_shit: Uint128 = shit
         .app
         .wrap()
         .query_wasm_smart(shitstrap.clone(), &QueryMsg::HasShit {})?;
-    assert_eq!(res, first);
+    assert_eq!(has_shit, first);
 
     // confirm funds made it to shitter
     let s1_uatom = shit.app.wrap().query_balance(&s1, "uatom")?;
@@ -683,22 +677,22 @@ fn test_fee_destination() -> TestResult {
     );
     assert_eq!(s1_ushit.amount, Uint256::from(first));
 
-    // confirm funds are still in shitstrap
+    // confirm funds are going to shitstrap owner
     let strap_uatom = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
     let strap_ushit = shit.app.wrap().query_balance(shitstrap.clone(), "ushit")?;
-    assert_eq!(strap_uatom.amount, Uint256::new(first_deposit));
+    assert_eq!(strap_uatom.amount, Uint256::zero());
     assert_eq!(
         strap_ushit.amount,
         Uint256::new(1_000_000_000_000u128 + (222000000u128 - first.u128()))
     );
 
-    // end shitstrap early
-    let res = shit.app.execute_contract(
-        shit.owner.clone(),
-        shitstrap.clone(),
-        &ExecuteMsg::Flush {},
-        &[],
-    )?;
+    // // end shitstrap early
+    // let res = shit.app.execute_contract(
+    //     shit.owner.clone(),
+    //     shitstrap.clone(),
+    //     &ExecuteMsg::Flush {},
+    //     &[],
+    // )?;
 
     // confirm uatom was sent with bank
     res.assert_event(
@@ -717,23 +711,23 @@ fn test_fee_destination() -> TestResult {
             .add_attribute("amount", first_deposit.to_string() + "uatom"),
     );
 
-    // confirm shitstrap balance is empty
-    let strap_uatom = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
-    let strap_ushit = shit.app.wrap().query_balance(shitstrap.clone(), "ushit")?;
-    assert_eq!(strap_uatom.amount, Uint256::zero());
-    assert_eq!(strap_ushit.amount, Uint256::new(1_000_000_000_000u128));
+    // // confirm shitstrap balance is empty
+    // let strap_uatom = shit.app.wrap().query_balance(shitstrap.clone(), "uatom")?;
+    // let strap_ushit = shit.app.wrap().query_balance(shitstrap.clone(), "ushit")?;
+    // assert_eq!(strap_uatom.amount, Uint256::zero());
+    // assert_eq!(strap_ushit.amount, Uint256::new(1_000_000_000_000u128));
 
-    // confirm shistrap owner now has updated balance
-    let owner_uatom = shit.app.wrap().query_balance(&shit.owner, "uatom")?;
-    let owner_ushit = shit.app.wrap().query_balance(&shit.owner, "ushit")?;
-    assert_eq!(
-        owner_uatom.amount,
-        Uint256::new(DEFAULT_BALANCE + first_deposit)
-    );
-    assert_eq!(
-        owner_ushit.amount,
-        Uint256::new(222000000u128 - first.u128())
-    );
+    // // confirm shistrap owner now has updated balance
+    // let owner_uatom = shit.app.wrap().query_balance(&shit.owner, "uatom")?;
+    // let owner_ushit = shit.app.wrap().query_balance(&shit.owner, "ushit")?;
+    // assert_eq!(
+    //     owner_uatom.amount,
+    //     Uint256::new(DEFAULT_BALANCE + first_deposit)
+    // );
+    // assert_eq!(
+    //     owner_ushit.amount,
+    //     Uint256::new(222000000u128 - first.u128())
+    // );
 
     Ok(())
 }

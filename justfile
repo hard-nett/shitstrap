@@ -7,34 +7,17 @@ arch := `if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then e
 schema-codegen:
         @sh scripts/sh/schema-codegen.sh
 
-# wasm:
-#     docker run --rm \
-#             -v "{{justfile_directory()}}/..":/workspace \
-#             --mount type=volume,source=shitstraps_cache,target=/target \
-#             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-#             --platform {{arch}} \
-#             {{docker_image}}
-
-
 optimizer-build:
         docker build -t {{docker_image}} optimizer/
 
-workspace-optimize: optimizer-build
-        docker run --rm \
-                -v "{{justfile_directory()}}/..":/workspace \
-                --mount type=volume,source=dao_contracts_cache,target=/target \
-                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-                --platform {{arch}} \
-                {{docker_image}}
-
-# Quick rebuild without rebuilding the Docker image
-workspace-optimize-quick:
-        docker run --rm \
-                -v "{{justfile_directory()}}/..":/workspace \
-                --mount type=volume,source=dao_contracts_cache,target=/target \
-                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-                --platform {{arch}} \
-                {{docker_image}}
+workspace-optimize:
+	docker run --rm \
+		-v $(pwd)/..:/workspace \
+		--env PROJECT_DIR=$$(basename $$(pwd)) \
+		--mount type=volume,source=terp_optimizer_cache,target=/target \
+		--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+		--platform {{arch}} \
+		{{docker_image}}
 
 # Clear build caches (useful after toolchain changes or if builds fail)
 optimizer-clean:

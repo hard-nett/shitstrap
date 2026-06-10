@@ -7,7 +7,6 @@ version.workspace = true
 
 [features]
 default = []
-# e2e = ["dep:ict-rs", "dep:sha2"]
 
 [[bin]]
 name = "deploy"
@@ -15,19 +14,22 @@ path = "src/bin/deploy.rs"
 # required-features = ["e2e"]
 
 [[bin]]
+name = "upload"
+path = "src/bin/upload.rs"
+
+[[bin]]
 name = "e2e"
-path = "src/bin/e2e.rs"
+path = "tests/e2e.rs"
 required-features = ["e2e"]
 
 [dependencies]
 cw-shitstrap = { workspace = true, features = ["interface"] }
 cw-shitstrap-factory = { workspace = true, features = ["interface"] }
 cw-orch = { workspace = true, features = ["daemon"] }
-cw-orch-interchain = { workspace = true, features = ["daemon"] }
+cw-orch-interchain = { path = "../../../cw-orchestrator/cw-orch-interchain", features = ["daemon"] }
 cw-shit-denom = { workspace = true }
 cosmwasm-std = { workspace = true }
 anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
 sha2 = { workspace = true }
 tracing = "0.1"
 env_logger = "0.11"
@@ -35,8 +37,3 @@ clap = { version = "4", features = ["derive"] }
 dotenv = "0.15"
 serde_json = "1.0"
 terp-rs = { workspace = true }
-[dependencies.ict-rs]
-path = "../../../ict-rs/ict-rs"
-features = ["docker", "terp", "testing"]
-# optional = true
-
